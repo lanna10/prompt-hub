@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Hub — Sunday</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --sidebar: #ffffff;
+    --panel: #ffffff;
+    --soft: #f5f6f8;
+    --line: #e6e8ec;
+    --text: #0f172a;
+    --muted: #64748b;
+    --blue: #1d4ed8;
+    --blue-dark: #163fb0;
+    --blue-soft: #eef3ff;
+    --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.07);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    text-transform: uppercase;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+  }
+  /* keep prompt content + rename fields as typed (not forced caps) */
+  textarea, .rename-input { text-transform: none; }
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 264px;
+    flex-shrink: 0;
+    background: var(--sidebar);
+    border-right: 1px solid var(--line);
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 14px;
+    overflow-y: auto;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 11px;
+    padding: 6px 8px 18px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 16px;
+    cursor: pointer;
+  }
+  .brand:hover .brand-name { color: var(--blue); }
+  .brand .logo {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: var(--blue); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 19px; flex-shrink: 0;
+  }
+  .brand .brand-name { font-weight: 800; font-size: 15px; letter-spacing: 0.02em; }
+  .nav-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 10px 10px; margin-bottom: 4px;
+  }
+  .nav-head .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted);
+  }
+  .nav-head .count {
+    font-size: 11px; font-weight: 700; color: var(--blue);
+    background: var(--blue-soft); border-radius: 999px; padding: 1px 8px;
+  }
+  .nav { display: flex; flex-direction: column; gap: 6px; }
+  .nav-item {
+    position: relative;
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left;
+    background: var(--blue); border: none; cursor: pointer;
+    padding: 10px 12px; border-radius: 10px;
+    font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: #fff;
+    box-shadow: var(--shadow);
+    transition: background .12s ease, transform .06s ease;
+  }
+  .nav-item:hover { background: var(--blue-dark); }
+  .nav-item.active { background: var(--blue-dark); }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: 0; top: 9px; bottom: 9px;
+    width: 3px; border-radius: 2px; background: #fff;
+  }
+  .nav-item .thumb {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    background: rgba(255,255,255,.22);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 12px;
+  }
+  .nav-item .nav-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-item .del {
+    background: none; border: none; color: rgba(255,255,255,.65); cursor: pointer;
+    font-size: 17px; line-height: 1; padding: 0 2px; border-radius: 6px;
+    opacity: 0; transition: opacity .12s, color .12s;
+  }
+  .nav-item:hover .del { opacity: 1; }
+  .nav-item .del:hover { color: #fff; }
+  .rename-input {
+    flex: 1; min-width: 0; font-family: inherit; font-size: 13px; font-weight: 700;
+    color: var(--text); background: #fff; border: 1px solid #fff;
+    border-radius: 7px; padding: 4px 7px;
+  }
+  .rename-input:focus { outline: none; }
+  .add-tab {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left; background: none; cursor: pointer;
+    border: 1px dashed var(--line); border-radius: 10px;
+    padding: 10px 12px; margin-top: 10px;
+    font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--muted);
+    transition: all .12s ease;
+  }
+  .add-tab:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+  .add-tab .plus {
+    width: 26px; height: 26px; border-radius: 7px; background: var(--soft);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: var(--text);
+  }
+  .side-foot {
+    margin-top: auto; padding: 16px 10px 4px;
+    font-size: 10.5px; color: var(--muted); border-top: 1px solid var(--line);
+  }
+  /* ---------- Main ---------- */
+  main { flex: 1; min-width: 0; }
+  .page-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    padding: 36px 48px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .title-input {
+    font-family: inherit; font-weight: 800; font-size: 32px; letter-spacing: -0.01em;
+    text-transform: uppercase;
+    border: none; background: none; color: var(--text);
+    padding: 0; width: 100%; line-height: 1.1;
+  }
+  .title-input::placeholder { color: #94a3b8; }
+  .title-input:focus { outline: none; }
+  .subtitle { color: var(--muted); font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em; margin-top: 8px; }
+  .savedflag {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--blue);
+    white-space: nowrap; padding-top: 8px;
+  }
+  .content { padding: 8px 48px 90px; max-width: 1040px; }
+  .block { padding: 24px 0; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
+  .section-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    margin-bottom: 14px;
+  }
+  .section-title { font-weight: 800; font-size: 15px; letter-spacing: 0.03em; margin: 0; }
+  .section-desc { color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; margin: 4px 0 0; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 6px;
+  }
+  textarea {
+    width: 100%; min-height: 210px; resize: vertical;
+    border: none; border-radius: 10px; background: transparent; color: var(--text);
+    padding: 14px;
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13.5px; line-height: 1.6;
+  }
+  textarea::placeholder { color: #94a3b8; }
+  textarea:focus { outline: none; }
+  /* buttons */
+  .btn {
+    font-family: inherit; font-weight: 700; font-size: 12px; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid var(--line); border-radius: 9px;
+    background: #fff; color: var(--text); padding: 9px 15px; cursor: pointer;
+    transition: all .12s ease; white-space: nowrap;
+  }
+  .btn:hover { background: var(--soft); }
+  .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn.primary:hover { background: var(--blue-dark); }
+  /* find similar pills */
+  .search-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .search-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); margin-right: 2px; }
+  .pill {
+    text-decoration: none; font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text); background: #fff; border: 1px solid var(--line);
+    border-radius: 999px; padding: 7px 14px; transition: all .12s ease;
+  }
+  .pill:hover { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+  /* dropzone */
+  .dropzone {
+    border: 1.5px dashed #cbd5e1; border-radius: 12px; padding: 32px;
+    text-align: center; color: var(--muted); cursor: pointer;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.03em; transition: all .12s ease;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+  /* moodboard grid */
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 14px; margin-top: 18px;
+  }
+  .mb-card {
+    position: relative; aspect-ratio: 1 / 1; border-radius: 12px;
+    overflow: hidden; background: var(--soft); border: 1px solid var(--line); box-shadow: var(--shadow);
+  }
+  .mb-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mb-card .del, .mb-card .dl {
+    position: absolute; top: 8px; width: 30px; height: 30px;
+    border: none; border-radius: 8px; cursor: pointer;
+    background: rgba(15,23,42,.6); color: #fff; font-size: 15px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .12s, background .12s;
+    backdrop-filter: blur(4px);
+  }
+  .mb-card .dl { left: 8px; font-weight: 800; }
+  .mb-card .del { right: 8px; }
+  .mb-card .dl:hover { background: var(--blue); }
+  .mb-card .del:hover { background: #ef4444; }
+  .mb-card:hover .del, .mb-card:hover .dl { opacity: 1; }
+  .empty { margin-top: 16px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.03em; }
+  .hidden { display: none; }
+  /* ---------- Landing splash ---------- */
+  .landing {
+    position: fixed; inset: 0; z-index: 50; background: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    transition: opacity .45s ease, transform .45s ease;
+  }
+  .landing.hide { opacity: 0; transform: translateY(-44px); pointer-events: none; }
+  .landing .logo-lg {
+    width: 80px; height: 80px; border-radius: 22px;
+    background: var(--blue); color: #fff; box-shadow: var(--shadow);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 40px;
+  }
+  .landing h1 { font-size: 42px; font-weight: 800; letter-spacing: 0.01em; margin: 28px 0 0; }
+  .landing .tag {
+    color: var(--muted); font-weight: 600; letter-spacing: 0.06em; font-size: 13px;
+    margin: 14px 0 0; max-width: 440px; line-height: 1.6;
+  }
+  .landing .enter { margin-top: 32px; font-size: 13px; padding: 14px 34px; border-radius: 11px; }
+  .landing .dots { display: flex; gap: 8px; margin-top: 30px; }
+  .landing .dots span { width: 9px; height: 9px; border-radius: 50%; }
+  .landing .foot {
+    position: absolute; bottom: 26px;
+    font-size: 10px; color: var(--muted); letter-spacing: 0.1em;
+  }
+  /* explainer steps */
+  .landing .steps { display: flex; flex-direction: column; gap: 11px; margin-top: 28px; text-align: left; }
+  .landing .step { display: flex; align-items: center; gap: 12px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; color: var(--text); }
+  .landing .step .num {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: var(--blue-soft); color: var(--blue);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;
+  }
+  /* entrance animation */
+  .landing .logo-lg, .landing h1, .landing .tag, .landing .steps, .landing .dots, .landing .enter { opacity: 0; }
+  .landing.in .logo-lg { animation: popIn .55s cubic-bezier(.2,.8,.3,1.25) forwards; }
+  .landing.in h1 { animation: fadeUp .5s ease .12s forwards; }
+  .landing.in .tag { animation: fadeUp .5s ease .22s forwards; }
+  .landing.in .steps { animation: fadeUp .5s ease .34s forwards; }
+  .landing.in .dots { animation: fadeUp .5s ease .5s forwards; }
+  .landing.in .enter { animation: fadeUp .5s ease .62s forwards; }
+  .landing.in .dots span { animation: dotPulse 1.5s ease-in-out infinite; }
+  .landing .dots span:nth-child(1) { animation-delay: .0s; }
+  .landing .dots span:nth-child(2) { animation-delay: .12s; }
+  .landing .dots span:nth-child(3) { animation-delay: .24s; }
+  .landing .dots span:nth-child(4) { animation-delay: .36s; }
+  .landing .dots span:nth-child(5) { animation-delay: .48s; }
+  .landing .dots span:nth-child(6) { animation-delay: .6s; }
+  @keyframes popIn { from { opacity: 0; transform: scale(.7) rotate(-6deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes dotPulse { 0%,100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.45); opacity: 1; } }
+  .landing .scroll-hint {
+    margin-top: 24px; font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    color: var(--muted); animation: bob 1.6s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+  /* reveal-on-scroll */
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity .55s ease, transform .55s ease; }
+  .reveal.in-view { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .landing .logo-lg, .landing h1, .landing .tag, .landing .steps, .landing .dots, .landing .enter { opacity: 1; animation: none !important; }
+    .landing.in .dots span { animation: none; }
+    .landing .scroll-hint { animation: none; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+  }
+  @media (max-width: 820px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
+    .nav { flex-direction: row; flex-wrap: wrap; }
+    .nav-item { flex: 1 1 44%; }
+    .nav-item.active::before { display: none; }
+    .side-foot { display: none; }
+    .page-head { padding: 26px 22px 18px; }
+    .title-input { font-size: 26px; }
+    .content { padding: 8px 22px 70px; }
+  }
+</style>
+</head>
+<body>
+  <div class="landing in" id="landing">
+    <div class="logo-lg">S</div>
+    <h1>Prompt Hub</h1>
+    <p class="tag">Your prompts &amp; moodboards for every account, all in one place.</p>
+    <div class="steps">
+      <div class="step"><span class="num">1</span><span>Pick a tab for each account</span></div>
+      <div class="step"><span class="num">2</span><span>Paste your ChatGPT prompt</span></div>
+      <div class="step"><span class="num">3</span><span>Drop in moodboard pics</span></div>
+    </div>
+    <div class="dots" id="landingDots"></div>
+    <button class="btn primary enter" id="enterBtn">Enter</button>
+    <div class="scroll-hint">Scroll to enter ↓</div>
+    <div class="foot">Sunday · Prompt Hub</div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="brand" id="brand" title="Back to welcome screen">
+      <div class="logo">S</div>
+      <div class="brand-name">Prompt Hub</div>
+    </div>
+    <div class="nav-head">
+      <span class="label">Tabs</span>
+      <span class="count" id="tabCount">0</span>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <button class="add-tab" id="addTab"><span class="plus">+</span><span>New tab</span></button>
+    <div class="side-foot">Saves automatically · double-click a tab to rename</div>
+  </aside>
+
+  <main>
+    <header class="page-head">
+      <div style="flex:1; min-width:0;">
+        <input class="title-input" id="nameInput" placeholder="">
+        <div class="subtitle">Prompt &amp; moodboard for this account</div>
+      </div>
+      <span class="savedflag" id="topflag"></span>
+    </header>
+    <div class="content" id="content"></div>
+  </main>
+
+<script>
+const ACCENTS = ['#4f8cff','#22c1c3','#a78bfa','#f59e0b','#ef4f8c','#34d399','#60a5fa','#f472b6'];
+const LS_KEY = 'promptHub.v3';
+
+// ---- State (with migration from v2) ----
+function defaultState() {
+  const tabs = [];
+  for (let i = 1; i <= 6; i++) {
+    tabs.push({ id: 't' + i, def: 'TikTok ' + i, name: null, accent: ACCENTS[(i - 1) % ACCENTS.length], prompt: '' });
+  }
+  return { tabs, nextNum: 7 };
+}
+function loadState() {
+  try {
+    const v3 = localStorage.getItem(LS_KEY);
+    if (v3) return JSON.parse(v3);
+  } catch (e) {}
+  const s = defaultState();
+  try {
+    const v2 = JSON.parse(localStorage.getItem('promptHub.v2'));
+    if (v2) s.tabs.forEach(t => { if (v2[t.id]) { t.name = v2[t.id].name || null; t.prompt = v2[t.id].prompt || ''; } });
+  } catch (e) {}
+  return s;
+}
+let state = loadState();
+let active = state.tabs[0].id;
+
+function saveState() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  flashSaved();
+}
+function getTab(id) { return state.tabs.find(t => t.id === id); }
+
+let flashTimer;
+function flashSaved() {
+  const el = document.getElementById('topflag');
+  if (!el) return;
+  el.textContent = 'Saved';
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { if (el) el.textContent = ''; }, 1200);
+}
+
+// ---- Image store (IndexedDB) with in-memory cache ----
+let db;
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('promptHubImages', 1);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains('images')) {
+        const os = d.createObjectStore('images', { keyPath: 'id' });
+        os.createIndex('tab', 'tab', { unique: false });
+      }
+    };
+    req.onsuccess = () => { db = req.result; resolve(db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+const imageCache = {};
+function preloadImages() {
+  return new Promise(resolve => {
+    if (!db) return resolve();
+    try {
+      const req = db.transaction('images', 'readonly').objectStore('images').getAll();
+      req.onsuccess = () => {
+        (req.result || []).forEach(im => { (imageCache[im.tab] = imageCache[im.tab] || []).push(im); });
+        Object.values(imageCache).forEach(a => a.sort((x, y) => x.ts - y.ts));
+        resolve();
+      };
+      req.onerror = () => resolve();
+    } catch (e) { resolve(); }
+  });
+}
+function persistPut(rec) { if (db) try { db.transaction('images', 'readwrite').objectStore('images').put(rec); } catch (e) {} }
+function persistDelete(id) { if (db) try { db.transaction('images', 'readwrite').objectStore('images').delete(id); } catch (e) {} }
+function addImageRecord(tab, dataUrl) {
+  const rec = { id: tab + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), tab, dataUrl, ts: Date.now() };
+  (imageCache[tab] = imageCache[tab] || []).push(rec);
+  persistPut(rec);
+  return rec;
+}
+function removeImageRecord(tab, id) {
+  imageCache[tab] = (imageCache[tab] || []).filter(im => im.id !== id);
+  persistDelete(id);
+}
+function deleteTabImages(tabId) {
+  (imageCache[tabId] || []).forEach(im => persistDelete(im.id));
+  delete imageCache[tabId];
+}
+
+// ---- Tab actions ----
+function addTab() {
+  const id = 't' + Date.now();
+  const t = { id, def: 'TikTok ' + (state.nextNum++), name: null, accent: ACCENTS[state.tabs.length % ACCENTS.length], prompt: '' };
+  state.tabs.push(t);
+  active = id;
+  saveState();
+  render();
+}
+function deleteTab(id) {
+  if (state.tabs.length <= 1) { alert('You need at least one tab.'); return; }
+  const t = getTab(id);
+  if (!confirm('Delete "' + (t.name || t.def) + '" and its moodboard? This can’t be undone.')) return;
+  deleteTabImages(id);
+  state.tabs = state.tabs.filter(x => x.id !== id);
+  if (active === id) active = state.tabs[0].id;
+  saveState();
+  render();
+}
+function startRename(t, spanEl) {
+  const input = document.createElement('input');
+  input.className = 'rename-input';
+  input.value = t.name || t.def;
+  spanEl.replaceWith(input);
+  input.focus();
+  input.select();
+  input.onclick = e => e.stopPropagation();
+  input.onkeydown = e => {
+    if (e.key === 'Enter') input.blur();
+    else if (e.key === 'Escape') { input.onblur = null; render(); }
+  };
+  input.onblur = () => { t.name = input.value.trim() || null; saveState(); render(); };
+}
+
+// ---- Reveal-on-scroll ----
+const prefersReduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const revealObserver = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    if (en.isIntersecting) { en.target.classList.add('in-view'); revealObserver.unobserve(en.target); }
+  });
+}, { threshold: 0.12 });
+function observeReveals(root) {
+  if (!root) return;
+  root.querySelectorAll('.reveal:not(.in-view)').forEach(el => {
+    if (prefersReduce) el.classList.add('in-view');
+    else revealObserver.observe(el);
+  });
+}
+
+// ---- Render ----
+function renderNav() {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = '';
+  document.getElementById('tabCount').textContent = state.tabs.length;
+  state.tabs.forEach(t => {
+    const label = t.name || t.def;
+    const b = document.createElement('button');
+    b.className = 'nav-item' + (t.id === active ? ' active' : '');
+    b.onclick = () => { active = t.id; render(); };
+
+    const thumb = document.createElement('span');
+    thumb.className = 'thumb';
+    thumb.textContent = label.trim().charAt(0).toUpperCase() || 'T';
+
+    const name = document.createElement('span');
+    name.className = 'nav-name';
+    name.textContent = label;
+    name.ondblclick = e => { e.stopPropagation(); startRename(t, name); };
+
+    const del = document.createElement('span');
+    del.className = 'del';
+    del.textContent = '×';
+    del.title = 'Delete tab';
+    del.onclick = e => { e.stopPropagation(); deleteTab(t.id); };
+
+    b.appendChild(thumb);
+    b.appendChild(name);
+    b.appendChild(del);
+    nav.appendChild(b);
+  });
+}
+
+function renderMain() {
+  const t = getTab(active);
+  const nameInput = document.getElementById('nameInput');
+  nameInput.placeholder = t.def;
+  nameInput.value = t.name || '';
+  nameInput.oninput = () => { t.name = nameInput.value.trim() || null; saveState(); renderNav(); };
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <section class="block reveal">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Prompt</h2>
+          <p class="section-desc">Paste the prompt you got from ChatGPT.</p>
+        </div>
+        <button class="btn" id="copyBtn">Copy</button>
+      </div>
+      <div class="card">
+        <textarea id="promptArea" placeholder="Paste your prompt here…">${(t.prompt || '').replace(/</g,'&lt;')}</textarea>
+      </div>
+    </section>
+
+    <hr class="divider">
+
+    <section class="block reveal">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Moodboard</h2>
+          <p class="section-desc">Drop in reference pics to build the vibe. Hover an image to download or remove it.</p>
+        </div>
+        <button class="btn primary" id="addBtn">+ Add images</button>
+      </div>
+      <div class="search-row">
+        <span class="search-label">Find similar pics:</span>
+        <a class="pill" href="https://lens.google.com/" target="_blank" rel="noopener">Google Lens</a>
+        <a class="pill" href="https://images.google.com/" target="_blank" rel="noopener">Google Images</a>
+        <a class="pill" href="https://tineye.com/" target="_blank" rel="noopener">TinEye</a>
+        <a class="pill" href="https://www.bing.com/visualsearch" target="_blank" rel="noopener">Bing</a>
+        <a class="pill" href="https://www.pinterest.com/search/" target="_blank" rel="noopener">Pinterest</a>
+      </div>
+      <div class="dropzone" id="dropzone">Drag &amp; drop images, or click to choose from your computer</div>
+      <input type="file" id="fileInput" accept="image/*" multiple class="hidden">
+      <div class="grid" id="grid"></div>
+      <div class="empty hidden" id="emptyMsg">No images yet — add some to build the vibe.</div>
+    </section>
+  `;
+
+  const promptArea = document.getElementById('promptArea');
+  promptArea.oninput = () => { t.prompt = promptArea.value; saveState(); };
+
+  document.getElementById('copyBtn').onclick = () => {
+    navigator.clipboard.writeText(promptArea.value || '');
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied';
+    setTimeout(() => btn.textContent = 'Copy', 1200);
+  };
+
+  const fileInput = document.getElementById('fileInput');
+  const dropzone = document.getElementById('dropzone');
+  document.getElementById('addBtn').onclick = () => fileInput.click();
+  dropzone.onclick = () => fileInput.click();
+  fileInput.onchange = () => handleFiles(fileInput.files, t.id);
+  dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('drag'); };
+  dropzone.ondragleave = () => dropzone.classList.remove('drag');
+  dropzone.ondrop = e => { e.preventDefault(); dropzone.classList.remove('drag'); handleFiles(e.dataTransfer.files, t.id); };
+
+  renderGrid(t.id);
+  observeReveals(content);
+}
+
+function handleFiles(files, tabId) {
+  [...files].filter(f => f.type.startsWith('image/')).forEach(f => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      addImageRecord(tabId, reader.result);
+      if (tabId === active) renderGrid(tabId);
+      flashSaved();
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function downloadImage(im, tabId, index) {
+  const t = getTab(tabId);
+  const base = (t.name || t.def).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'moodboard';
+  const m = /^data:image\/(\w+)/.exec(im.dataUrl);
+  const ext = m ? m[1].replace('jpeg', 'jpg') : 'png';
+  const a = document.createElement('a');
+  a.href = im.dataUrl;
+  a.download = base + '-' + index + '.' + ext;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function renderGrid(tabId) {
+  const grid = document.getElementById('grid');
+  const emptyMsg = document.getElementById('emptyMsg');
+  if (!grid) return;
+  const imgs = imageCache[tabId] || [];
+  grid.innerHTML = '';
+  emptyMsg.classList.toggle('hidden', imgs.length > 0);
+  imgs.forEach((im, i) => {
+    const card = document.createElement('div');
+    card.className = 'mb-card reveal';
+    card.style.transitionDelay = Math.min(i, 8) * 45 + 'ms';
+    card.innerHTML = '<img src="' + im.dataUrl + '">';
+
+    const dl = document.createElement('button');
+    dl.className = 'dl';
+    dl.textContent = '↓';
+    dl.title = 'Download';
+    dl.onclick = () => downloadImage(im, tabId, i + 1);
+
+    const del = document.createElement('button');
+    del.className = 'del';
+    del.textContent = '×';
+    del.title = 'Delete';
+    del.onclick = () => { removeImageRecord(tabId, im.id); renderGrid(tabId); flashSaved(); };
+
+    card.appendChild(dl);
+    card.appendChild(del);
+    grid.appendChild(card);
+  });
+  observeReveals(grid);
+}
+
+function render() { renderNav(); renderMain(); }
+
+document.getElementById('addTab').onclick = addTab;
+
+// ---- Landing splash ----
+(function () {
+  const dots = document.getElementById('landingDots');
+  ACCENTS.slice(0, 6).forEach(c => {
+    const s = document.createElement('span');
+    s.style.background = c;
+    dots.appendChild(s);
+  });
+  const landing = document.getElementById('landing');
+  let entered = false;
+  const enter = () => {
+    if (entered) return;
+    entered = true;
+    landing.classList.add('hide');
+    setTimeout(() => { landing.style.display = 'none'; }, 460);
+  };
+  const showLanding = () => {
+    entered = false;
+    landing.style.display = 'flex';
+    landing.classList.remove('in');
+    void landing.offsetWidth; // restart animations
+    requestAnimationFrame(() => { landing.classList.remove('hide'); landing.classList.add('in'); });
+  };
+  document.getElementById('enterBtn').onclick = enter;
+  document.getElementById('brand').onclick = showLanding;
+
+  // scroll / swipe down to enter
+  landing.addEventListener('wheel', e => { if (e.deltaY > 8) enter(); }, { passive: true });
+  let touchY = null;
+  landing.addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
+  landing.addEventListener('touchmove', e => {
+    if (touchY !== null && touchY - e.touches[0].clientY > 28) enter();
+  }, { passive: true });
+  window.addEventListener('keydown', e => {
+    if (!entered && (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ' || e.key === 'Enter')) enter();
+  });
+})();
+
+(async function init() {
+  try { await openDB(); await preloadImages(); } catch (e) { /* storage unavailable — still works in-session */ }
+  render();
+})();
+</script>
+</body>
+</html>
