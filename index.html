@@ -358,6 +358,7 @@
     <button class="add-tab" id="addTab"><span class="plus">+</span><span>New tab</span></button>
     <div class="tool-head">Tools</div>
     <button class="tool-item" id="aiTab"><span class="tool-ic">✨</span><span>Image → Prompt</span></button>
+    <button class="tool-item" id="textTab"><span class="tool-ic">✍︎</span><span>Text → Prompt</span></button>
     <div class="side-foot">Saves automatically · double-click a tab to rename</div>
   </aside>
 
@@ -399,6 +400,7 @@ function loadState() {
 let state = loadState();
 let active = state.tabs[0].id;
 const AI_VIEW = '__ai__';
+const TEXT_VIEW = '__text__';
 let aiImage = null;
 
 function saveState() {
@@ -546,12 +548,15 @@ function renderNav() {
   });
   const aiTab = document.getElementById('aiTab');
   if (aiTab) aiTab.classList.toggle('active', active === AI_VIEW);
+  const textTab = document.getElementById('textTab');
+  if (textTab) textTab.classList.toggle('active', active === TEXT_VIEW);
 }
 
 function renderMain() {
   const nameInput = document.getElementById('nameInput');
   const subtitle = document.getElementById('subtitle');
   if (active === AI_VIEW) { renderAIView(nameInput, subtitle); return; }
+  if (active === TEXT_VIEW) { renderTextView(nameInput, subtitle); return; }
   nameInput.readOnly = false;
   subtitle.textContent = 'Prompt & moodboard for this account';
   const t = getTab(active);
@@ -801,10 +806,105 @@ async function generateAIPrompt() {
   }
 }
 
+// ---- Text → Prompt (AI) view ----
+function renderTextView(nameInput, subtitle) {
+  nameInput.value = 'Text → Prompt';
+  nameInput.readOnly = true;
+  nameInput.oninput = null;
+  subtitle.textContent = 'Describe an idea and turn it into a Midjourney prompt';
+
+  const tabOptions = state.tabs.map(t => '<option value="' + t.id + '">' + (t.name || t.def) + '</option>').join('');
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <section class="block">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Describe your idea</h2>
+          <p class="section-desc">Type a rough idea and AI will expand it into a detailed Midjourney prompt.</p>
+        </div>
+      </div>
+      <div class="card">
+        <textarea id="ideaInput" placeholder="e.g. rainy neon Tokyo alley at 3am, lonely figure in a trench coat…"></textarea>
+      </div>
+      <div class="ai-row">
+        <button class="btn primary" id="ideaGen">Generate prompt</button>
+        <span class="savedflag" id="ideaStatus"></span>
+      </div>
+      <div class="ai-error hidden" id="ideaError"></div>
+    </section>
+
+    <hr class="divider">
+
+    <section class="block">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Midjourney prompt</h2>
+          <p class="section-desc">Edit it, copy it, or save it to one of your tabs.</p>
+        </div>
+        <button class="btn" id="ideaCopy">Copy</button>
+      </div>
+      <div class="card">
+        <textarea id="ideaResult" placeholder="Your generated prompt will appear here…"></textarea>
+      </div>
+      <div class="ai-row">
+        <select class="ai-select" id="ideaTabSelect">${tabOptions}</select>
+        <button class="btn" id="ideaSave">Add to tab</button>
+      </div>
+    </section>
+  `;
+
+  document.getElementById('ideaGen').onclick = generateTextPrompt;
+  document.getElementById('ideaCopy').onclick = () => {
+    navigator.clipboard.writeText(document.getElementById('ideaResult').value || '');
+    const b = document.getElementById('ideaCopy');
+    b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy', 1200);
+  };
+  document.getElementById('ideaSave').onclick = () => {
+    const text = document.getElementById('ideaResult').value.trim();
+    if (!text) return;
+    const t = getTab(document.getElementById('ideaTabSelect').value);
+    if (!t) return;
+    t.prompt = t.prompt ? (t.prompt + '\n\n' + text) : text;
+    saveState();
+    const b = document.getElementById('ideaSave');
+    b.textContent = 'Added ✓'; setTimeout(() => b.textContent = 'Add to tab', 1400);
+  };
+}
+
+async function generateTextPrompt() {
+  const idea = (document.getElementById('ideaInput').value || '').trim();
+  const err = document.getElementById('ideaError');
+  const status = document.getElementById('ideaStatus');
+  const gen = document.getElementById('ideaGen');
+  err.classList.add('hidden');
+  if (!idea) { err.textContent = 'Type an idea first.'; err.classList.remove('hidden'); return; }
+  status.textContent = 'Generating…';
+  gen.disabled = true;
+  try {
+    const r = await fetch('/api/text-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: idea })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+    document.getElementById('ideaResult').value = data.prompt || '';
+    status.textContent = 'Done';
+    setTimeout(() => { status.textContent = ''; }, 1500);
+  } catch (e) {
+    status.textContent = '';
+    err.textContent = 'Couldn’t reach the AI backend. (' + e.message + ')';
+    err.classList.remove('hidden');
+  } finally {
+    gen.disabled = false;
+  }
+}
+
 function render() { renderNav(); renderMain(); }
 
 document.getElementById('addTab').onclick = addTab;
 document.getElementById('aiTab').onclick = () => { active = AI_VIEW; render(); };
+document.getElementById('textTab').onclick = () => { active = TEXT_VIEW; render(); };
 
 // ---- Landing splash ----
 (function () {
