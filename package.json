@@ -1,0 +1,15 @@
+{
+  "name": "prompt-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sunday Prompt Hub — prompts & moodboards with AI image-to-prompt",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

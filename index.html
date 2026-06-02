@@ -130,6 +130,31 @@
     margin-top: auto; padding: 16px 10px 4px;
     font-size: 10.5px; color: var(--muted); border-top: 1px solid var(--line);
   }
+  .tool-head {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted);
+    padding: 16px 10px 8px; margin-top: 10px; border-top: 1px solid var(--line);
+  }
+  .tool-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: none; border: none; cursor: pointer;
+    padding: 9px 10px; border-radius: 10px;
+    font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: #334155;
+    transition: background .12s ease, color .12s ease;
+  }
+  .tool-item:hover { background: var(--soft); }
+  .tool-item.active { background: var(--blue-soft); color: var(--blue); }
+  .tool-item .tool-ic {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    background: var(--blue-soft); color: var(--blue);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .ai-preview { max-width: 240px; border-radius: 12px; border: 1px solid var(--line); display: block; }
+  .ai-error { color: #ef4444; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; margin-top: 12px; }
+  .ai-row { margin-top: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .ai-select {
+    font-family: inherit; font-size: 12px; font-weight: 600; color: var(--text);
+    border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; background: #fff;
+  }
   /* ---------- Main ---------- */
   main { flex: 1; min-width: 0; }
   .page-head {
@@ -331,6 +356,8 @@
     </div>
     <nav class="nav" id="nav"></nav>
     <button class="add-tab" id="addTab"><span class="plus">+</span><span>New tab</span></button>
+    <div class="tool-head">Tools</div>
+    <button class="tool-item" id="aiTab"><span class="tool-ic">✨</span><span>Image → Prompt</span></button>
     <div class="side-foot">Saves automatically · double-click a tab to rename</div>
   </aside>
 
@@ -338,7 +365,7 @@
     <header class="page-head">
       <div style="flex:1; min-width:0;">
         <input class="title-input" id="nameInput" placeholder="">
-        <div class="subtitle">Prompt &amp; moodboard for this account</div>
+        <div class="subtitle" id="subtitle">Prompt &amp; moodboard for this account</div>
       </div>
       <span class="savedflag" id="topflag"></span>
     </header>
@@ -371,6 +398,8 @@ function loadState() {
 }
 let state = loadState();
 let active = state.tabs[0].id;
+const AI_VIEW = '__ai__';
+let aiImage = null;
 
 function saveState() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
@@ -515,11 +544,17 @@ function renderNav() {
     b.appendChild(del);
     nav.appendChild(b);
   });
+  const aiTab = document.getElementById('aiTab');
+  if (aiTab) aiTab.classList.toggle('active', active === AI_VIEW);
 }
 
 function renderMain() {
-  const t = getTab(active);
   const nameInput = document.getElementById('nameInput');
+  const subtitle = document.getElementById('subtitle');
+  if (active === AI_VIEW) { renderAIView(nameInput, subtitle); return; }
+  nameInput.readOnly = false;
+  subtitle.textContent = 'Prompt & moodboard for this account';
+  const t = getTab(active);
   nameInput.placeholder = t.def;
   nameInput.value = t.name || '';
   nameInput.oninput = () => { t.name = nameInput.value.trim() || null; saveState(); renderNav(); };
@@ -644,9 +679,132 @@ function renderGrid(tabId) {
   observeReveals(grid);
 }
 
+// ---- Image → Prompt (AI) view ----
+function renderAIView(nameInput, subtitle) {
+  aiImage = null;
+  nameInput.value = 'Image → Prompt';
+  nameInput.readOnly = true;
+  nameInput.oninput = null;
+  subtitle.textContent = 'Turn a reference photo into a Midjourney prompt';
+
+  const tabOptions = state.tabs.map(t => '<option value="' + t.id + '">' + (t.name || t.def) + '</option>').join('');
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <section class="block">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Upload a picture</h2>
+          <p class="section-desc">Drop a reference image and AI will write a Midjourney prompt from it.</p>
+        </div>
+      </div>
+      <div class="dropzone" id="aiDrop">Drag &amp; drop an image, or click to choose</div>
+      <input type="file" id="aiFile" accept="image/*" class="hidden">
+      <div id="aiPreviewWrap" class="hidden" style="margin-top:14px;">
+        <img id="aiPreview" class="ai-preview" alt="">
+      </div>
+      <div class="ai-row">
+        <button class="btn primary" id="aiGen" disabled>Generate prompt</button>
+        <span class="savedflag" id="aiStatus"></span>
+      </div>
+      <div class="ai-error hidden" id="aiError"></div>
+    </section>
+
+    <hr class="divider">
+
+    <section class="block">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Midjourney prompt</h2>
+          <p class="section-desc">Edit it, copy it, or save it to one of your tabs.</p>
+        </div>
+        <button class="btn" id="aiCopy">Copy</button>
+      </div>
+      <div class="card">
+        <textarea id="aiResult" placeholder="Your generated prompt will appear here…"></textarea>
+      </div>
+      <div class="ai-row">
+        <select class="ai-select" id="aiTabSelect">${tabOptions}</select>
+        <button class="btn" id="aiSave">Add to tab</button>
+      </div>
+    </section>
+  `;
+
+  const fileInput = document.getElementById('aiFile');
+  const drop = document.getElementById('aiDrop');
+  const gen = document.getElementById('aiGen');
+  const preview = document.getElementById('aiPreview');
+  const previewWrap = document.getElementById('aiPreviewWrap');
+
+  const setImage = dataUrl => {
+    aiImage = dataUrl;
+    preview.src = dataUrl;
+    previewWrap.classList.remove('hidden');
+    gen.disabled = false;
+  };
+  const handle = files => {
+    const f = [...files].find(x => x.type.startsWith('image/'));
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setImage(reader.result);
+    reader.readAsDataURL(f);
+  };
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => handle(fileInput.files);
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('drag'); };
+  drop.ondragleave = () => drop.classList.remove('drag');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('drag'); handle(e.dataTransfer.files); };
+
+  gen.onclick = generateAIPrompt;
+
+  document.getElementById('aiCopy').onclick = () => {
+    navigator.clipboard.writeText(document.getElementById('aiResult').value || '');
+    const b = document.getElementById('aiCopy');
+    b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy', 1200);
+  };
+  document.getElementById('aiSave').onclick = () => {
+    const text = document.getElementById('aiResult').value.trim();
+    if (!text) return;
+    const t = getTab(document.getElementById('aiTabSelect').value);
+    if (!t) return;
+    t.prompt = t.prompt ? (t.prompt + '\n\n' + text) : text;
+    saveState();
+    const b = document.getElementById('aiSave');
+    b.textContent = 'Added ✓'; setTimeout(() => b.textContent = 'Add to tab', 1400);
+  };
+}
+
+function setAIStatus(msg) { const el = document.getElementById('aiStatus'); if (el) el.textContent = msg; }
+function showAIError(msg) { const el = document.getElementById('aiError'); if (el) { el.textContent = msg; el.classList.toggle('hidden', !msg); } }
+
+async function generateAIPrompt() {
+  if (!aiImage) return;
+  const gen = document.getElementById('aiGen');
+  showAIError('');
+  setAIStatus('Generating…');
+  gen.disabled = true;
+  try {
+    const r = await fetch('/api/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: aiImage })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+    document.getElementById('aiResult').value = data.prompt || '';
+    setAIStatus('Done');
+    setTimeout(() => setAIStatus(''), 1500);
+  } catch (e) {
+    setAIStatus('');
+    showAIError('Couldn’t reach the AI backend yet. This works once the Render web service is live. (' + e.message + ')');
+  } finally {
+    gen.disabled = false;
+  }
+}
+
 function render() { renderNav(); renderMain(); }
 
 document.getElementById('addTab').onclick = addTab;
+document.getElementById('aiTab').onclick = () => { active = AI_VIEW; render(); };
 
 // ---- Landing splash ----
 (function () {
