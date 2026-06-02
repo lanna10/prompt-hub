@@ -19,12 +19,19 @@ app.post('/api/prompt', async (req, res) => {
     }
 
     const instruction =
-      'You are an expert Midjourney prompt engineer. Do NOT literally describe what is in this image. ' +
-      'Instead, write ONE Midjourney prompt that would GENERATE NEW images with the same overall look and vibe — ' +
-      'matching the aesthetic, style, mood, color grading, lighting, camera/film look, grain/texture, and composition feel, ' +
-      'so the results feel like they belong to the same series. Keep the subject general enough to allow variation ' +
-      'rather than copying the exact scene. Use concise, comma-separated style descriptors (medium/art style, lighting, ' +
-      'color palette, mood, lens or film stock, grain, era, composition). ' +
+      'You are an expert Midjourney prompt writer for moody, cinematic nightlife and fashion content. ' +
+      'Study the uploaded image closely and write ONE richly descriptive, highly detailed Midjourney prompt that ' +
+      'faithfully recreates its vibe so generated results closely match it: the setting and scene, the subjects and ' +
+      'their styling, the lighting, color palette, mood, era, and the camera/film texture. Be specific and evocative — ' +
+      'name concrete real-world references, locations, eras, and aesthetics where they fit. ' +
+      'Match the style of these examples:\n' +
+      '"Berlin Berghain-inspired techno club, massive concrete industrial hall, black-clad crowd dancing under harsh ' +
+      'strobe lights, smoke machines, dark corners, steel railings, red ambient lighting, gritty documentary realism, ' +
+      'grainy early 2000s flash photography, underground nightlife atmosphere"\n' +
+      '"1980s European jet-set nightclub on the Amalfi Coast, glamorous crowd dancing beneath disco lights beside the ' +
+      'sea, cigarette smoke, champagne towers, shadowy VIP corridors, cinematic analog film grain, decadent ' +
+      'Mediterranean nightlife atmosphere"\n' +
+      'Write about 35-60 words as comma-separated descriptive phrases. ' +
       'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
 
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -34,8 +41,8 @@ app.post('/api/prompt', async (req, res) => {
         'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        max_tokens: 320,
+        model: 'gpt-4o',
+        max_tokens: 400,
         messages: [{
           role: 'user',
           content: [
