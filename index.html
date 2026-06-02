@@ -155,6 +155,19 @@
     font-family: inherit; font-size: 12px; font-weight: 600; color: var(--text);
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; background: #fff;
   }
+  .saved-item {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+    display: flex; gap: 12px; align-items: flex-start; box-shadow: var(--shadow);
+  }
+  .saved-item .txt { flex: 1; font-size: 12.5px; line-height: 1.55; text-transform: none; white-space: pre-wrap; }
+  .saved-item .acts { display: flex; gap: 6px; flex-shrink: 0; }
+  .saved-item .mini {
+    font-family: inherit; font-weight: 700; font-size: 11px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); padding: 5px 9px;
+  }
+  .saved-item .mini:hover { background: var(--soft); }
+  .saved-item .mini.del:hover { background: #fee2e2; border-color: #fecaca; color: #ef4444; }
+  .saved-empty { color: var(--muted); font-size: 12px; }
   /* ---------- Main ---------- */
   main { flex: 1; min-width: 0; }
   .page-head {
@@ -383,7 +396,7 @@ function defaultState() {
   for (let i = 1; i <= 6; i++) {
     tabs.push({ id: 't' + i, def: 'TikTok ' + i, name: null, accent: ACCENTS[(i - 1) % ACCENTS.length], prompt: '' });
   }
-  return { tabs, nextNum: 7 };
+  return { tabs, nextNum: 7, saved: [] };
 }
 function loadState() {
   try {
@@ -724,6 +737,7 @@ function renderAIView(nameInput, subtitle) {
         </div>
         <span style="display:flex; gap:8px;">
           <button class="btn" id="aiRegen">↻ New version</button>
+          <button class="btn" id="aiSaveBtn">Save</button>
           <button class="btn" id="aiCopy">Copy</button>
         </span>
       </div>
@@ -734,6 +748,18 @@ function renderAIView(nameInput, subtitle) {
         <select class="ai-select" id="aiTabSelect">${tabOptions}</select>
         <button class="btn" id="aiSave">Add to tab</button>
       </div>
+    </section>
+
+    <hr class="divider">
+
+    <section class="block">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Saved prompts</h2>
+          <p class="section-desc">Your kept prompts — copy or remove anytime.</p>
+        </div>
+      </div>
+      <div id="savedList"></div>
     </section>
   `;
 
@@ -780,6 +806,14 @@ function renderAIView(nameInput, subtitle) {
     const b = document.getElementById('aiSave');
     b.textContent = 'Added ✓'; setTimeout(() => b.textContent = 'Add to tab', 1400);
   };
+  document.getElementById('aiSaveBtn').onclick = () => {
+    if (savePrompt(document.getElementById('aiResult').value, 'image')) {
+      const b = document.getElementById('aiSaveBtn');
+      b.textContent = 'Saved ✓'; setTimeout(() => b.textContent = 'Save', 1400);
+      renderSavedList();
+    }
+  };
+  renderSavedList();
 }
 
 function setAIStatus(msg) { const el = document.getElementById('aiStatus'); if (el) el.textContent = msg; }
@@ -847,6 +881,7 @@ function renderTextView(nameInput, subtitle) {
         </div>
         <span style="display:flex; gap:8px;">
           <button class="btn" id="ideaRegen">↻ New version</button>
+          <button class="btn" id="ideaSaveBtn">Save</button>
           <button class="btn" id="ideaCopy">Copy</button>
         </span>
       </div>
@@ -857,6 +892,18 @@ function renderTextView(nameInput, subtitle) {
         <select class="ai-select" id="ideaTabSelect">${tabOptions}</select>
         <button class="btn" id="ideaSave">Add to tab</button>
       </div>
+    </section>
+
+    <hr class="divider">
+
+    <section class="block">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Saved prompts</h2>
+          <p class="section-desc">Your kept prompts — copy or remove anytime.</p>
+        </div>
+      </div>
+      <div id="savedList"></div>
     </section>
   `;
 
@@ -877,6 +924,14 @@ function renderTextView(nameInput, subtitle) {
     const b = document.getElementById('ideaSave');
     b.textContent = 'Added ✓'; setTimeout(() => b.textContent = 'Add to tab', 1400);
   };
+  document.getElementById('ideaSaveBtn').onclick = () => {
+    if (savePrompt(document.getElementById('ideaResult').value, 'text')) {
+      const b = document.getElementById('ideaSaveBtn');
+      b.textContent = 'Saved ✓'; setTimeout(() => b.textContent = 'Save', 1400);
+      renderSavedList();
+    }
+  };
+  renderSavedList();
 }
 
 async function generateTextPrompt() {
@@ -906,6 +961,50 @@ async function generateTextPrompt() {
   } finally {
     gen.disabled = false;
   }
+}
+
+// ---- Saved prompts ----
+function savePrompt(text, source) {
+  text = (text || '').trim();
+  if (!text) return false;
+  if (!state.saved) state.saved = [];
+  state.saved.push({ id: 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), text, source, ts: Date.now() });
+  saveState();
+  return true;
+}
+function deleteSavedPrompt(id) {
+  state.saved = (state.saved || []).filter(s => s.id !== id);
+  saveState();
+}
+function renderSavedList() {
+  const wrap = document.getElementById('savedList');
+  if (!wrap) return;
+  const items = (state.saved || []).slice().reverse();
+  if (!items.length) { wrap.innerHTML = '<div class="saved-empty">No saved prompts yet.</div>'; return; }
+  wrap.innerHTML = '';
+  items.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'saved-item';
+    const txt = document.createElement('div');
+    txt.className = 'txt';
+    txt.textContent = s.text;
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const copy = document.createElement('button');
+    copy.className = 'mini';
+    copy.textContent = 'Copy';
+    copy.onclick = () => { navigator.clipboard.writeText(s.text); copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy', 1200); };
+    const del = document.createElement('button');
+    del.className = 'mini del';
+    del.textContent = '×';
+    del.title = 'Remove';
+    del.onclick = () => { deleteSavedPrompt(s.id); renderSavedList(); };
+    acts.appendChild(copy);
+    acts.appendChild(del);
+    row.appendChild(txt);
+    row.appendChild(acts);
+    wrap.appendChild(row);
+  });
 }
 
 function render() { renderNav(); renderMain(); }
