@@ -722,7 +722,10 @@ function renderAIView(nameInput, subtitle) {
           <h2 class="section-title">Midjourney prompt</h2>
           <p class="section-desc">Edit it, copy it, or save it to one of your tabs.</p>
         </div>
-        <button class="btn" id="aiCopy">Copy</button>
+        <span style="display:flex; gap:8px;">
+          <button class="btn" id="aiRegen">↻ New version</button>
+          <button class="btn" id="aiCopy">Copy</button>
+        </span>
       </div>
       <div class="card">
         <textarea id="aiResult" placeholder="Your generated prompt will appear here…"></textarea>
@@ -761,6 +764,7 @@ function renderAIView(nameInput, subtitle) {
 
   gen.onclick = generateAIPrompt;
 
+  document.getElementById('aiRegen').onclick = generateAIPrompt;
   document.getElementById('aiCopy').onclick = () => {
     navigator.clipboard.writeText(document.getElementById('aiResult').value || '');
     const b = document.getElementById('aiCopy');
@@ -841,7 +845,10 @@ function renderTextView(nameInput, subtitle) {
           <h2 class="section-title">Midjourney prompt</h2>
           <p class="section-desc">Edit it, copy it, or save it to one of your tabs.</p>
         </div>
-        <button class="btn" id="ideaCopy">Copy</button>
+        <span style="display:flex; gap:8px;">
+          <button class="btn" id="ideaRegen">↻ New version</button>
+          <button class="btn" id="ideaCopy">Copy</button>
+        </span>
       </div>
       <div class="card">
         <textarea id="ideaResult" placeholder="Your generated prompt will appear here…"></textarea>
@@ -854,6 +861,7 @@ function renderTextView(nameInput, subtitle) {
   `;
 
   document.getElementById('ideaGen').onclick = generateTextPrompt;
+  document.getElementById('ideaRegen').onclick = generateTextPrompt;
   document.getElementById('ideaCopy').onclick = () => {
     navigator.clipboard.writeText(document.getElementById('ideaResult').value || '');
     const b = document.getElementById('ideaCopy');
