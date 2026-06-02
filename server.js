@@ -19,11 +19,13 @@ app.post('/api/prompt', async (req, res) => {
     }
 
     const instruction =
-      'You are an expert Midjourney prompt writer. Look at this image and write ONE vivid, ' +
-      'detailed Midjourney prompt that would recreate its subject, style, lighting, color palette, ' +
-      'mood, and composition. Use natural descriptive language and concrete visual details. ' +
-      'Output ONLY the prompt text — no quotes, no preamble, no explanation. ' +
-      'End the prompt with " --ar 9:16".';
+      'You are an expert Midjourney prompt engineer. Do NOT literally describe what is in this image. ' +
+      'Instead, write ONE Midjourney prompt that would GENERATE NEW images with the same overall look and vibe — ' +
+      'matching the aesthetic, style, mood, color grading, lighting, camera/film look, grain/texture, and composition feel, ' +
+      'so the results feel like they belong to the same series. Keep the subject general enough to allow variation ' +
+      'rather than copying the exact scene. Use concise, comma-separated style descriptors (medium/art style, lighting, ' +
+      'color palette, mood, lens or film stock, grain, era, composition). ' +
+      'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
 
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
