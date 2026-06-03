@@ -71,18 +71,16 @@ app.post('/api/prompt', async (req, res) => {
     }
 
     let instruction =
-      'You are an expert Midjourney prompt writer for moody, cinematic nightlife and fashion content. ' +
-      'Study the uploaded image closely and write ONE richly descriptive, highly detailed Midjourney prompt that ' +
-      'faithfully recreates its vibe so generated results closely match it: the setting and scene, the subjects and ' +
-      'their styling, the lighting, color palette, mood, era, and the camera/film texture. Be specific and evocative — ' +
-      'name concrete real-world references, locations, eras, and aesthetics where they fit. ' +
-      'Match the style of these examples:\n' +
-      '"Berlin Berghain-inspired techno club, massive concrete industrial hall, black-clad crowd dancing under harsh ' +
-      'strobe lights, smoke machines, dark corners, steel railings, red ambient lighting, gritty documentary realism, ' +
-      'grainy early 2000s flash photography, underground nightlife atmosphere"\n' +
-      '"1980s European jet-set nightclub on the Amalfi Coast, glamorous crowd dancing beneath disco lights beside the ' +
-      'sea, cigarette smoke, champagne towers, shadowy VIP corridors, cinematic analog film grain, decadent ' +
-      'Mediterranean nightlife atmosphere"\n' +
+      'You are an expert Midjourney prompt writer who creates PHOTO-REALISTIC, candid images that do NOT look AI-generated. ' +
+      'Study the uploaded image and write ONE detailed prompt that recreates its vibe as a believable real photograph: ' +
+      'the setting and scene, the exact number of people and what they are doing, their wardrobe and styling, the location, ' +
+      'the lighting, and a real camera / film look. Favour authentic detail — natural skin texture, slight motion blur, ' +
+      'candid framing, real imperfections, everyday realism. Always name a concrete camera or film look such as ' +
+      '"shot on Kodak Gold 200 35mm film", "candid direct-flash snapshot", "grainy disposable camera photo", or "amateur iPhone photo". ' +
+      'Avoid CGI / render words like hyperrealistic, 8k, ultra-detailed, octane, cinematic render. ' +
+      'Match the realistic style of these examples:\n' +
+      '"Formula 1 VIP box at sunset, 4 guests leaning over the balcony with headphones on while cars speed through the corner below, warm orange track light, champagne bucket, realistic grainy motorsport photography"\n' +
+      '"modern Formula 1 suite bathroom mirror photo, 2 people only, race track visible through the window behind them, champagne, wristbands, designer sunglasses, candid flash, subtle analog grain"\n' +
       'Write about 35-60 words as comma-separated descriptive phrases. ' +
       'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
     instruction += divergenceNote(previous);
@@ -128,18 +126,16 @@ app.post('/api/text-prompt', async (req, res) => {
     }
 
     let instruction =
-      'You are an expert Midjourney prompt writer for moody, cinematic nightlife and fashion content. ' +
-      'Take the user\'s short idea and expand it into ONE richly descriptive, highly detailed Midjourney prompt that ' +
-      'brings it to life: a vivid setting and scene, the subjects and their styling, lighting, color palette, mood, era, ' +
-      'and camera/film texture. Be specific and evocative — name concrete real-world references, locations, eras, and ' +
-      'aesthetics where they fit, while staying true to the user\'s idea. ' +
-      'Match the style of these examples:\n' +
-      '"Berlin Berghain-inspired techno club, massive concrete industrial hall, black-clad crowd dancing under harsh ' +
-      'strobe lights, smoke machines, dark corners, steel railings, red ambient lighting, gritty documentary realism, ' +
-      'grainy early 2000s flash photography, underground nightlife atmosphere"\n' +
-      '"1980s European jet-set nightclub on the Amalfi Coast, glamorous crowd dancing beneath disco lights beside the ' +
-      'sea, cigarette smoke, champagne towers, shadowy VIP corridors, cinematic analog film grain, decadent ' +
-      'Mediterranean nightlife atmosphere"\n' +
+      'You are an expert Midjourney prompt writer who creates PHOTO-REALISTIC, candid images that do NOT look AI-generated. ' +
+      'Take the user\'s short idea and expand it into ONE detailed prompt that reads like a believable real photograph: ' +
+      'a specific setting and scene, the exact number of people and what they are doing, their wardrobe and styling, the ' +
+      'location, the lighting, and a real camera / film look. Favour authentic detail — natural skin texture, slight motion ' +
+      'blur, candid framing, real imperfections, everyday realism. Always name a concrete camera or film look such as ' +
+      '"shot on Kodak Gold 200 35mm film", "candid direct-flash snapshot", "grainy disposable camera photo", or "amateur iPhone photo". ' +
+      'Avoid CGI / render words like hyperrealistic, 8k, ultra-detailed, octane, cinematic render. ' +
+      'Match the realistic style of these examples:\n' +
+      '"Formula 1 VIP box at sunset, 4 guests leaning over the balcony with headphones on while cars speed through the corner below, warm orange track light, champagne bucket, realistic grainy motorsport photography"\n' +
+      '"modern Formula 1 suite bathroom mirror photo, 2 people only, race track visible through the window behind them, champagne, wristbands, designer sunglasses, candid flash, subtle analog grain"\n' +
       'Write about 35-60 words as comma-separated descriptive phrases. ' +
       'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
     instruction += divergenceNote(previous);
@@ -182,13 +178,16 @@ app.post('/api/chat', async (req, res) => {
     const system = {
       role: 'system',
       content:
-        'You are a creative director helping the user develop Midjourney image prompts for moody, cinematic ' +
-        'nightlife and fashion content (same world as: "Berlin Berghain-inspired techno club… gritty documentary ' +
-        'realism, grainy early 2000s flash photography" and "1980s Amalfi Coast jet-set nightclub… cinematic analog ' +
-        'film grain"). Chat naturally and briefly to help them shape their idea, asking the occasional clarifying ' +
-        'question. Whenever you propose a ready-to-use prompt, put it on its own line, write it as rich comma-separated ' +
-        'descriptive phrases (setting, subjects, styling, lighting, color, mood, era, film texture), and end that line ' +
-        'with " --ar 9:16". Keep replies concise.'
+        'You are a creative director helping the user develop Midjourney image prompts that look like PHOTO-REALISTIC, ' +
+        'candid real photographs — NOT AI-generated or cinematic CGI. Chat naturally and briefly to help shape their idea, ' +
+        'asking the occasional clarifying question. Whenever you propose a ready-to-use prompt, put it on its own line and ' +
+        'write it as comma-separated descriptive phrases covering: the setting/scene, the exact number of people and what ' +
+        'they are doing, wardrobe/styling, location, lighting, and a concrete camera or film look (e.g. "shot on Kodak Gold ' +
+        '200 35mm film", "candid direct-flash snapshot", "grainy disposable camera photo", "amateur iPhone photo"). Favour ' +
+        'authentic detail — natural skin texture, slight motion blur, real imperfections — and avoid render words like ' +
+        'hyperrealistic, 8k, ultra-detailed, octane, cinematic render. Style reference: "modern Formula 1 suite bathroom ' +
+        'mirror photo, 2 people only, race track visible through the window behind them, champagne, designer sunglasses, ' +
+        'candid flash, subtle analog grain". End each prompt line with " --ar 9:16". Keep replies concise.'
     };
 
     const clean = messages
