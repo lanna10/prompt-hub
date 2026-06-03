@@ -418,7 +418,39 @@ let aiImage = null;
 
 function saveState() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  scheduleServerSave();
   flashSaved();
+}
+let serverSaveTimer;
+function scheduleServerSave() {
+  clearTimeout(serverSaveTimer);
+  serverSaveTimer = setTimeout(pushToServer, 700);
+}
+function pushToServer() {
+  try {
+    fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tabs: state.tabs, nextNum: state.nextNum, saved: state.saved, images: imageCache })
+    }).catch(() => {});
+  } catch (e) {}
+}
+async function loadFromServer() {
+  try {
+    const r = await fetch('/api/data');
+    if (r.ok) {
+      const d = await r.json();
+      if (d && Array.isArray(d.tabs) && d.tabs.length) {
+        state = { tabs: d.tabs, nextNum: d.nextNum || (d.tabs.length + 1), saved: d.saved || [] };
+        Object.keys(imageCache).forEach(k => delete imageCache[k]);
+        Object.assign(imageCache, d.images || {});
+        if (!getTab(active)) active = state.tabs[0].id;
+        try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+        return true;
+      }
+    }
+  } catch (e) {}
+  return false;
 }
 function getTab(id) { return state.tabs.find(t => t.id === id); }
 
@@ -431,51 +463,19 @@ function flashSaved() {
   flashTimer = setTimeout(() => { if (el) el.textContent = ''; }, 1200);
 }
 
-// ---- Image store (IndexedDB) with in-memory cache ----
-let db;
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('promptHubImages', 1);
-    req.onupgradeneeded = () => {
-      const d = req.result;
-      if (!d.objectStoreNames.contains('images')) {
-        const os = d.createObjectStore('images', { keyPath: 'id' });
-        os.createIndex('tab', 'tab', { unique: false });
-      }
-    };
-    req.onsuccess = () => { db = req.result; resolve(db); };
-    req.onerror = () => reject(req.error);
-  });
-}
+// ---- Moodboard images (kept in memory, saved to the server) ----
 const imageCache = {};
-function preloadImages() {
-  return new Promise(resolve => {
-    if (!db) return resolve();
-    try {
-      const req = db.transaction('images', 'readonly').objectStore('images').getAll();
-      req.onsuccess = () => {
-        (req.result || []).forEach(im => { (imageCache[im.tab] = imageCache[im.tab] || []).push(im); });
-        Object.values(imageCache).forEach(a => a.sort((x, y) => x.ts - y.ts));
-        resolve();
-      };
-      req.onerror = () => resolve();
-    } catch (e) { resolve(); }
-  });
-}
-function persistPut(rec) { if (db) try { db.transaction('images', 'readwrite').objectStore('images').put(rec); } catch (e) {} }
-function persistDelete(id) { if (db) try { db.transaction('images', 'readwrite').objectStore('images').delete(id); } catch (e) {} }
 function addImageRecord(tab, dataUrl) {
   const rec = { id: tab + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), tab, dataUrl, ts: Date.now() };
   (imageCache[tab] = imageCache[tab] || []).push(rec);
-  persistPut(rec);
+  saveState();
   return rec;
 }
 function removeImageRecord(tab, id) {
   imageCache[tab] = (imageCache[tab] || []).filter(im => im.id !== id);
-  persistDelete(id);
+  saveState();
 }
 function deleteTabImages(tabId) {
-  (imageCache[tabId] || []).forEach(im => persistDelete(im.id));
   delete imageCache[tabId];
 }
 
@@ -1062,8 +1062,10 @@ document.getElementById('textTab').onclick = () => { active = TEXT_VIEW; render(
 })();
 
 (async function init() {
-  try { await openDB(); await preloadImages(); } catch (e) { /* storage unavailable — still works in-session */ }
-  render();
+  render();                       // instant paint from local cache
+  const ok = await loadFromServer();
+  if (ok) render();               // repaint with server data (incl. moodboard images)
+  else pushToServer();            // server empty — seed it with current data
 })();
 </script>
 </body>

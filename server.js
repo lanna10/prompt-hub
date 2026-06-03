@@ -2,12 +2,42 @@
 // to OpenAI so the API key stays on the server (never in the browser).
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Serve the static site (index.html etc.) from this folder
 app.use(express.static(__dirname));
+
+// ---- Persistent storage (tabs, prompts, moodboard images) ----
+// Uses a Render persistent disk mounted at /var/data (override with DATA_DIR).
+const DATA_DIR = process.env.DATA_DIR || '/var/data';
+const DATA_FILE = path.join(DATA_DIR, 'state.json');
+function ensureDataDir() { try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {} }
+ensureDataDir();
+
+app.get('/api/data', (req, res) => {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      res.type('application/json').send(fs.readFileSync(DATA_FILE, 'utf8'));
+    } else {
+      res.json({});
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/data', (req, res) => {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(DATA_FILE, JSON.stringify(req.body || {}));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // POST /api/prompt  { image: "data:image/...;base64,..." }  ->  { prompt: "..." }
 app.post('/api/prompt', async (req, res) => {
@@ -43,6 +73,7 @@ app.post('/api/prompt', async (req, res) => {
       body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 400,
+        temperature: 1,
         messages: [{
           role: 'user',
           content: [
@@ -98,6 +129,7 @@ app.post('/api/text-prompt', async (req, res) => {
       body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 400,
+        temperature: 1,
         messages: [
           { role: 'system', content: instruction },
           { role: 'user', content: 'Idea: ' + text }
