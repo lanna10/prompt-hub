@@ -600,7 +600,10 @@ function renderMain() {
           <h2 class="section-title">Moodboard</h2>
           <p class="section-desc">Drop in reference pics to build the vibe. Hover an image to download or remove it.</p>
         </div>
-        <button class="btn primary" id="addBtn">+ Add images</button>
+        <span style="display:flex; gap:8px;">
+          <button class="btn" id="dlAllBtn">↓ Download all</button>
+          <button class="btn primary" id="addBtn">+ Add images</button>
+        </span>
       </div>
       <div class="search-row">
         <span class="search-label">Find similar pics:</span>
@@ -630,6 +633,7 @@ function renderMain() {
   const fileInput = document.getElementById('fileInput');
   const dropzone = document.getElementById('dropzone');
   document.getElementById('addBtn').onclick = () => fileInput.click();
+  document.getElementById('dlAllBtn').onclick = () => downloadAllImages(t.id);
   dropzone.onclick = () => fileInput.click();
   fileInput.onchange = () => handleFiles(fileInput.files, t.id);
   dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('drag'); };
@@ -663,6 +667,12 @@ function downloadImage(im, tabId, index) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+function downloadAllImages(tabId) {
+  const imgs = imageCache[tabId] || [];
+  if (!imgs.length) { alert('No images to download yet.'); return; }
+  imgs.forEach((im, i) => setTimeout(() => downloadImage(im, tabId, i + 1), i * 350));
 }
 
 function renderGrid(tabId) {
