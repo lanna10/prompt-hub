@@ -824,8 +824,43 @@ async function loadTikTok(t) {
     status.textContent = '';
   } catch (e) {
     status.textContent = '';
-    err.textContent = 'Couldn’t load stats. (' + e.message + ')';
     err.classList.remove('hidden');
+    err.innerHTML = '';
+    const msg = String(e.message || '');
+    if (/not_found|not found|add it|accounts\/add/i.test(msg)) {
+      const span = document.createElement('span');
+      span.textContent = '@' + user + ' isn’t being tracked yet. ';
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.style.marginLeft = '6px';
+      b.textContent = 'Add to tracking';
+      b.onclick = () => addTikTok(user);
+      err.appendChild(span);
+      err.appendChild(b);
+    } else {
+      err.textContent = 'Couldn’t load stats. (' + msg + ')';
+    }
+  }
+}
+async function addTikTok(user) {
+  const err = document.getElementById('ttError');
+  const status = document.getElementById('ttStatus');
+  if (status) status.textContent = 'Adding…';
+  try {
+    const r = await fetch('/api/tiktok-add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+    if (status) status.textContent = '';
+    err.classList.remove('hidden');
+    err.textContent = '✓ Added @' + user + ' to tracking. TikTok data usually appears within about an hour — come back and hit Load videos again.';
+  } catch (e) {
+    if (status) status.textContent = '';
+    err.classList.remove('hidden');
+    err.textContent = 'Couldn’t add account. (' + e.message + ')';
   }
 }
 
