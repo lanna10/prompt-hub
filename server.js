@@ -239,6 +239,7 @@ app.get('/api/tiktok', async (req, res) => {
       headers: { 'X-APP-ID': process.env.CHARTEX_APP_ID, 'X-APP-TOKEN': process.env.CHARTEX_APP_TOKEN }
     });
     const text = await r.text();
+    if (r.status === 404 || /not_found/i.test(text)) return res.json({ notTracked: true });
     if (!r.ok) return res.status(r.status === 429 ? 429 : 502).json({ error: 'Chartex ' + r.status + ': ' + text.slice(0, 200) });
     let data;
     try { data = JSON.parse(text); } catch (e) { return res.status(502).json({ error: 'Unexpected response from Chartex.' }); }

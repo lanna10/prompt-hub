@@ -817,30 +817,40 @@ async function loadTikTok(t) {
   try {
     const r = await fetch('/api/tiktok?username=' + encodeURIComponent(user) + '&sort_by=' + encodeURIComponent(sort) + '&limit=12');
     const d = await r.json().catch(() => ({}));
+    status.textContent = '';
+    if (d && d.notTracked) { showTtNotTracked(user); return; }
     if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
     const items = ttPickArray(d);
-    if (!items.length) { err.textContent = 'No videos found for @' + user + '.'; err.classList.remove('hidden'); status.textContent = ''; return; }
+    if (!items.length) {
+      err.classList.remove('hidden');
+      err.innerHTML = '';
+      err.textContent = 'No videos yet for @' + user + '. If you just added it, Chartex needs up to ~1 hour to collect the data — check back soon.';
+      return;
+    }
     items.forEach(v => grid.appendChild(ttCard(v, user)));
-    status.textContent = '';
   } catch (e) {
     status.textContent = '';
     err.classList.remove('hidden');
     err.innerHTML = '';
     const msg = String(e.message || '');
-    if (/not_found|not found|add it|accounts\/add/i.test(msg)) {
-      const span = document.createElement('span');
-      span.textContent = '@' + user + ' isn’t being tracked yet. ';
-      const b = document.createElement('button');
-      b.className = 'btn';
-      b.style.marginLeft = '6px';
-      b.textContent = 'Add to tracking';
-      b.onclick = () => addTikTok(user);
-      err.appendChild(span);
-      err.appendChild(b);
-    } else {
-      err.textContent = 'Couldn’t load stats. (' + msg + ')';
-    }
+    if (/not_found|not found|add it|accounts\/add/i.test(msg)) showTtNotTracked(user);
+    else err.textContent = 'Couldn’t load stats. (' + msg + ')';
   }
+}
+function showTtNotTracked(user) {
+  const err = document.getElementById('ttError');
+  if (!err) return;
+  err.classList.remove('hidden');
+  err.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = '@' + user + ' isn’t being tracked yet. ';
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.style.marginLeft = '6px';
+  b.textContent = 'Add to tracking';
+  b.onclick = () => addTikTok(user);
+  err.appendChild(span);
+  err.appendChild(b);
 }
 async function addTikTok(user) {
   const err = document.getElementById('ttError');
