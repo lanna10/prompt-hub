@@ -168,6 +168,14 @@
   .saved-item .mini:hover { background: var(--soft); }
   .saved-item .mini.del:hover { background: #fee2e2; border-color: #fecaca; color: #ef4444; }
   .saved-empty { color: var(--muted); font-size: 12px; }
+  /* tiktok stats */
+  .tt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-top: 18px; }
+  .tt-card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .tt-thumb { width: 100%; aspect-ratio: 9/16; object-fit: cover; display: block; background: var(--soft); }
+  .tt-noimg { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .tt-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 10px 12px; font-size: 12px; font-weight: 700; color: var(--text); }
+  .tt-open { display: block; text-align: center; padding: 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); text-decoration: none; border-top: 1px solid var(--line); }
+  .tt-open:hover { background: var(--blue-soft); }
   /* chat */
   .chat { display: flex; flex-direction: column; }
   .chat-messages {
@@ -442,19 +450,31 @@ const LS_KEY = 'promptHub.v3';
 function defaultState() {
   const tabs = [];
   for (let i = 1; i <= 6; i++) {
-    tabs.push({ id: 't' + i, def: 'TikTok ' + i, name: null, accent: ACCENTS[(i - 1) % ACCENTS.length], prompt: '' });
+    tabs.push({ id: 't' + i, def: 'TikTok ' + i, name: null, accent: ACCENTS[(i - 1) % ACCENTS.length], prompts: [] });
   }
   return { tabs, nextNum: 7, saved: [], chat: [] };
+}
+// Ensure every tab has a prompts[] list (migrating from the old single-prompt field)
+function normalizeTabs(tabs) {
+  (tabs || []).forEach(t => {
+    if (!Array.isArray(t.prompts)) {
+      t.prompts = (t.prompt && String(t.prompt).trim())
+        ? [{ id: 'p_' + Math.random().toString(36).slice(2, 8), text: t.prompt }]
+        : [];
+    }
+    delete t.prompt;
+  });
+  return tabs;
 }
 function loadState() {
   try {
     const v3 = localStorage.getItem(LS_KEY);
-    if (v3) return JSON.parse(v3);
+    if (v3) { const s = JSON.parse(v3); normalizeTabs(s.tabs); return s; }
   } catch (e) {}
   const s = defaultState();
   try {
     const v2 = JSON.parse(localStorage.getItem('promptHub.v2'));
-    if (v2) s.tabs.forEach(t => { if (v2[t.id]) { t.name = v2[t.id].name || null; t.prompt = v2[t.id].prompt || ''; } });
+    if (v2) s.tabs.forEach(t => { if (v2[t.id] && v2[t.id].prompt) { t.name = v2[t.id].name || null; t.prompts = [{ id: 'p_' + Math.random().toString(36).slice(2, 8), text: v2[t.id].prompt }]; } });
   } catch (e) {}
   return s;
 }
@@ -491,7 +511,7 @@ async function loadFromServer() {
     if (r.ok) {
       const d = await r.json();
       if (d && Array.isArray(d.tabs) && d.tabs.length) {
-        state = { tabs: d.tabs, nextNum: d.nextNum || (d.tabs.length + 1), saved: d.saved || [], chat: d.chat || [] };
+        state = { tabs: normalizeTabs(d.tabs), nextNum: d.nextNum || (d.tabs.length + 1), saved: d.saved || [], chat: d.chat || [] };
         Object.keys(imageCache).forEach(k => delete imageCache[k]);
         Object.assign(imageCache, d.images || {});
         if (!getTab(active)) active = state.tabs[0].id;
@@ -635,14 +655,15 @@ function renderMain() {
     <section class="block reveal">
       <div class="section-head">
         <div>
-          <h2 class="section-title">Prompt</h2>
-          <p class="section-desc">Paste the prompt you got from ChatGPT.</p>
+          <h2 class="section-title">Prompts</h2>
+          <p class="section-desc">Save as many prompts as you like for this account.</p>
         </div>
-        <button class="btn" id="copyBtn">Copy</button>
       </div>
       <div class="card">
-        <textarea id="promptArea" placeholder="Paste your prompt here…">${(t.prompt || '').replace(/</g,'&lt;')}</textarea>
+        <textarea id="newPromptArea" placeholder="Paste a prompt here…" style="min-height:130px;"></textarea>
       </div>
+      <div class="ai-row"><button class="btn primary" id="addPromptBtn">+ Save to tab</button></div>
+      <div id="tabPromptList" style="margin-top:6px;"></div>
     </section>
 
     <hr class="divider">
@@ -671,17 +692,44 @@ function renderMain() {
       <div class="grid" id="grid"></div>
       <div class="empty hidden" id="emptyMsg">No images yet — add some to build the vibe.</div>
     </section>
+
+    <hr class="divider">
+
+    <section class="block reveal">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">TikTok stats</h2>
+          <p class="section-desc">Enter this account's @username to pull its videos and their stats.</p>
+        </div>
+      </div>
+      <div class="ai-row">
+        <input id="ttUser" class="ai-select" style="min-width:200px; text-transform:none;" placeholder="@username" value="${(t.tiktok || '').replace(/"/g,'&quot;')}">
+        <select id="ttSort" class="ai-select">
+          <option value="tiktok_video_views">Most views</option>
+          <option value="tiktok_video_likes">Most likes</option>
+          <option value="tiktok_video_comments">Most comments</option>
+          <option value="tiktok_video_shares">Most shares</option>
+          <option value="tiktok_video_create_date">Newest</option>
+        </select>
+        <button class="btn primary" id="ttLoad">Load videos</button>
+        <span class="savedflag" id="ttStatus"></span>
+      </div>
+      <div class="ai-error hidden" id="ttError"></div>
+      <div class="tt-grid" id="ttGrid"></div>
+    </section>
   `;
 
-  const promptArea = document.getElementById('promptArea');
-  promptArea.oninput = () => { t.prompt = promptArea.value; saveState(); };
-
-  document.getElementById('copyBtn').onclick = () => {
-    navigator.clipboard.writeText(promptArea.value || '');
-    const btn = document.getElementById('copyBtn');
-    btn.textContent = 'Copied';
-    setTimeout(() => btn.textContent = 'Copy', 1200);
+  const newPromptArea = document.getElementById('newPromptArea');
+  document.getElementById('addPromptBtn').onclick = () => {
+    const v = (newPromptArea.value || '').trim();
+    if (!v) return;
+    if (!t.prompts) t.prompts = [];
+    t.prompts.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), text: v });
+    newPromptArea.value = '';
+    saveState();
+    renderTabPrompts(t);
   };
+  renderTabPrompts(t);
 
   const fileInput = document.getElementById('fileInput');
   const dropzone = document.getElementById('dropzone');
@@ -693,8 +741,81 @@ function renderMain() {
   dropzone.ondragleave = () => dropzone.classList.remove('drag');
   dropzone.ondrop = e => { e.preventDefault(); dropzone.classList.remove('drag'); handleFiles(e.dataTransfer.files, t.id); };
 
+  // TikTok stats
+  const ttUser = document.getElementById('ttUser');
+  ttUser.oninput = () => { t.tiktok = ttUser.value.trim().replace(/^@/, ''); saveState(); };
+  document.getElementById('ttLoad').onclick = () => loadTikTok(t);
+  if (t.tiktok) loadTikTok(t);
+
   renderGrid(t.id);
   observeReveals(content);
+}
+
+function ttNum(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  return '' + n;
+}
+function ttPickArray(d) {
+  if (Array.isArray(d)) return d;
+  if (!d || typeof d !== 'object') return [];
+  for (const k of ['results', 'data', 'videos', 'items']) {
+    if (Array.isArray(d[k])) return d[k];
+    if (d[k] && Array.isArray(d[k].data)) return d[k].data;
+  }
+  return [];
+}
+function ttVideoUrl(v, user) {
+  if (v.tiktok_video_url) return v.tiktok_video_url;
+  const id = v.tiktok_video_id || v.video_id || v.id;
+  return id ? ('https://www.tiktok.com/@' + user + '/video/' + id) : null;
+}
+function ttCard(v, user) {
+  const card = document.createElement('div');
+  card.className = 'tt-card';
+  const img = v.tiktok_video_image_url || v.tiktok_video_cover || '';
+  const url = ttVideoUrl(v, user);
+  const thumb = img ? '<img class="tt-thumb" src="' + img + '">' : '<div class="tt-thumb tt-noimg">No preview</div>';
+  card.innerHTML = thumb +
+    '<div class="tt-stats">' +
+      '<span title="Views">▶ ' + ttNum(v.tiktok_video_views) + '</span>' +
+      '<span title="Likes">♥ ' + ttNum(v.tiktok_video_likes) + '</span>' +
+      '<span title="Comments">💬 ' + ttNum(v.tiktok_video_comments) + '</span>' +
+      '<span title="Shares">↗ ' + ttNum(v.tiktok_video_shares) + '</span>' +
+    '</div>';
+  if (url) {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    a.className = 'tt-open'; a.textContent = 'Open on TikTok';
+    card.appendChild(a);
+  }
+  return card;
+}
+async function loadTikTok(t) {
+  const grid = document.getElementById('ttGrid');
+  const status = document.getElementById('ttStatus');
+  const err = document.getElementById('ttError');
+  if (!grid) return;
+  const user = (document.getElementById('ttUser').value || '').trim().replace(/^@/, '');
+  err.classList.add('hidden');
+  if (!user) { err.textContent = 'Enter a username first.'; err.classList.remove('hidden'); return; }
+  const sort = document.getElementById('ttSort').value;
+  status.textContent = 'Loading…';
+  grid.innerHTML = '';
+  try {
+    const r = await fetch('/api/tiktok?username=' + encodeURIComponent(user) + '&sort_by=' + encodeURIComponent(sort) + '&limit=12');
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+    const items = ttPickArray(d);
+    if (!items.length) { err.textContent = 'No videos found for @' + user + '.'; err.classList.remove('hidden'); status.textContent = ''; return; }
+    items.forEach(v => grid.appendChild(ttCard(v, user)));
+    status.textContent = '';
+  } catch (e) {
+    status.textContent = '';
+    err.textContent = 'Couldn’t load stats. (' + e.message + ')';
+    err.classList.remove('hidden');
+  }
 }
 
 function handleFiles(files, tabId) {
@@ -720,6 +841,37 @@ function downloadImage(im, tabId, index) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+function renderTabPrompts(t) {
+  const wrap = document.getElementById('tabPromptList');
+  if (!wrap) return;
+  const list = t.prompts || [];
+  if (!list.length) { wrap.innerHTML = '<div class="saved-empty">No saved prompts for this tab yet.</div>'; return; }
+  wrap.innerHTML = '';
+  list.slice().reverse().forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'saved-item';
+    const txt = document.createElement('div');
+    txt.className = 'txt';
+    txt.textContent = p.text;
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const copy = document.createElement('button');
+    copy.className = 'mini';
+    copy.textContent = 'Copy';
+    copy.onclick = () => { navigator.clipboard.writeText(p.text); copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy', 1200); };
+    const del = document.createElement('button');
+    del.className = 'mini del';
+    del.textContent = '×';
+    del.title = 'Remove';
+    del.onclick = () => { t.prompts = (t.prompts || []).filter(x => x.id !== p.id); saveState(); renderTabPrompts(t); };
+    acts.appendChild(copy);
+    acts.appendChild(del);
+    row.appendChild(txt);
+    row.appendChild(acts);
+    wrap.appendChild(row);
+  });
 }
 
 function downloadAllImages(tabId) {
@@ -864,7 +1016,8 @@ function renderAIView(nameInput, subtitle) {
     if (!text) return;
     const t = getTab(document.getElementById('aiTabSelect').value);
     if (!t) return;
-    t.prompt = t.prompt ? (t.prompt + '\n\n' + text) : text;
+    if (!t.prompts) t.prompts = [];
+    t.prompts.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), text });
     saveState();
     const b = document.getElementById('aiSave');
     b.textContent = 'Added ✓'; setTimeout(() => b.textContent = 'Add to tab', 1400);
@@ -982,7 +1135,8 @@ function renderTextView(nameInput, subtitle) {
     if (!text) return;
     const t = getTab(document.getElementById('ideaTabSelect').value);
     if (!t) return;
-    t.prompt = t.prompt ? (t.prompt + '\n\n' + text) : text;
+    if (!t.prompts) t.prompts = [];
+    t.prompts.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), text });
     saveState();
     const b = document.getElementById('ideaSave');
     b.textContent = 'Added ✓'; setTimeout(() => b.textContent = 'Add to tab', 1400);
@@ -1198,7 +1352,7 @@ function renderChatMessages() {
         add.textContent = 'Add to tab';
         add.onclick = () => {
           const t = getTab(sel.value);
-          if (t) { t.prompt = t.prompt ? (t.prompt + '\n\n' + p) : p; saveState(); add.textContent = 'Added ✓'; setTimeout(() => add.textContent = 'Add to tab', 1400); }
+          if (t) { if (!t.prompts) t.prompts = []; t.prompts.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), text: p }); saveState(); add.textContent = 'Added ✓'; setTimeout(() => add.textContent = 'Add to tab', 1400); }
         };
         acts.appendChild(copy);
         acts.appendChild(save);

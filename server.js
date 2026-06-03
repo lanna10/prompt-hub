@@ -221,5 +221,32 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// GET /api/tiktok?username=&sort_by=&limit=  -> Chartex video statistics for an account
+app.get('/api/tiktok', async (req, res) => {
+  try {
+    const username = String(req.query.username || '').replace(/^@/, '').trim();
+    if (!username) return res.status(400).json({ error: 'No username provided.' });
+    if (!process.env.CHARTEX_APP_ID || !process.env.CHARTEX_APP_TOKEN) {
+      return res.status(500).json({ error: 'Server is missing Chartex credentials.' });
+    }
+    const params = new URLSearchParams();
+    params.set('limit', String(req.query.limit || '12'));
+    if (req.query.sort_by) params.set('sort_by', String(req.query.sort_by));
+    params.set('include_image_url', 'true');
+    const url = 'https://api.chartex.com/external/v1/tiktok/accounts/' +
+      encodeURIComponent(username) + '/video-statistics/?' + params.toString();
+    const r = await fetch(url, {
+      headers: { 'X-APP-ID': process.env.CHARTEX_APP_ID, 'X-APP-TOKEN': process.env.CHARTEX_APP_TOKEN }
+    });
+    const text = await r.text();
+    if (!r.ok) return res.status(r.status === 429 ? 429 : 502).json({ error: 'Chartex ' + r.status + ': ' + text.slice(0, 200) });
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return res.status(502).json({ error: 'Unexpected response from Chartex.' }); }
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Unexpected server error.' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Prompt Hub listening on port ' + PORT));
