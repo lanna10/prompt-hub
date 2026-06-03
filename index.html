@@ -815,19 +815,29 @@ async function loadTikTok(t) {
   status.textContent = 'Loading…';
   grid.innerHTML = '';
   try {
-    const r = await fetch('/api/tiktok?username=' + encodeURIComponent(user) + '&sort_by=' + encodeURIComponent(sort) + '&limit=12');
-    const d = await r.json().catch(() => ({}));
+    let all = [];
+    let page = 1;
+    const maxPages = 5; // up to 500 videos
+    while (page <= maxPages) {
+      const r = await fetch('/api/tiktok?username=' + encodeURIComponent(user) + '&sort_by=' + encodeURIComponent(sort) + '&limit=100&page=' + page);
+      const d = await r.json().catch(() => ({}));
+      if (d && d.notTracked) { status.textContent = ''; showTtNotTracked(user); return; }
+      if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+      const items = ttPickArray(d);
+      all = all.concat(items);
+      const count = (d.data && d.data.count) || 0;
+      if (items.length < 100 || (count && all.length >= count)) break;
+      page++;
+      if (status) status.textContent = 'Loading… (' + all.length + ')';
+    }
     status.textContent = '';
-    if (d && d.notTracked) { showTtNotTracked(user); return; }
-    if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
-    const items = ttPickArray(d);
-    if (!items.length) {
+    if (!all.length) {
       err.classList.remove('hidden');
       err.innerHTML = '';
       err.textContent = 'No videos yet for @' + user + '. If you just added it, Chartex needs up to ~1 hour to collect the data — check back soon.';
       return;
     }
-    items.forEach(v => grid.appendChild(ttCard(v, user)));
+    all.forEach(v => grid.appendChild(ttCard(v, user)));
   } catch (e) {
     status.textContent = '';
     err.classList.remove('hidden');

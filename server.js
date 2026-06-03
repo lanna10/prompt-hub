@@ -230,7 +230,8 @@ app.get('/api/tiktok', async (req, res) => {
       return res.status(500).json({ error: 'Server is missing Chartex credentials.' });
     }
     const params = new URLSearchParams();
-    params.set('limit', String(req.query.limit || '12'));
+    params.set('limit', String(req.query.limit || '100'));
+    if (req.query.page) params.set('page', String(req.query.page));
     if (req.query.sort_by) params.set('sort_by', String(req.query.sort_by));
     params.set('include_image_url', 'true');
     const url = 'https://api.chartex.com/external/v1/tiktok/accounts/' +
