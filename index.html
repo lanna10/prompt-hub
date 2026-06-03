@@ -193,6 +193,24 @@
     padding: 12px 14px; font-family: inherit; font-size: 13px; text-transform: none; line-height: 1.5;
   }
   .chat-input textarea:focus { outline: none; border-color: var(--blue); }
+  #chatAttach { white-space: nowrap; align-self: stretch; }
+  .chat-thumb { display: block; margin-top: 8px; max-width: 200px; border-radius: 10px; }
+  .chat-preview { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .chat-preview img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+  .prompt-card {
+    align-self: flex-start; max-width: 82%;
+    background: #fff; border: 1.5px solid var(--blue); border-radius: 14px; padding: 12px 14px;
+    box-shadow: var(--shadow);
+  }
+  .prompt-card .pc-text { font-size: 12.5px; line-height: 1.5; text-transform: none; white-space: pre-wrap; }
+  .prompt-card .pc-acts { display: flex; gap: 8px; margin-top: 10px; }
+  .prompt-card .pc-acts button {
+    font-family: inherit; font-weight: 700; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); padding: 6px 11px;
+  }
+  .prompt-card .pc-acts button:hover { background: var(--soft); }
+  .prompt-card .pc-acts button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .prompt-card .pc-acts button.primary:hover { background: var(--blue-dark); }
   /* ---------- Main ---------- */
   main { flex: 1; min-width: 0; }
   .page-head {
@@ -442,6 +460,7 @@ const AI_VIEW = '__ai__';
 const TEXT_VIEW = '__text__';
 const CHAT_VIEW = '__chat__';
 let aiImage = null;
+let chatPendingImage = null;
 
 function saveState() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
@@ -1059,7 +1078,10 @@ function renderChatView(nameInput, subtitle) {
   content.innerHTML = `
     <div class="chat">
       <div class="chat-messages" id="chatMessages"></div>
+      <div id="chatPreview" class="chat-preview hidden"></div>
       <div class="chat-input">
+        <button class="btn" id="chatAttach" title="Attach an image">＋ Image</button>
+        <input type="file" id="chatFile" accept="image/*" class="hidden">
         <textarea id="chatInput" placeholder="Tell me what you're going for… e.g. a rooftop afterparty in Tokyo at dawn"></textarea>
         <button class="btn primary" id="chatSend">Send</button>
       </div>
@@ -1070,13 +1092,43 @@ function renderChatView(nameInput, subtitle) {
     </div>
   `;
   renderChatMessages();
+  updateChatPreview();
   const input = document.getElementById('chatInput');
+  const fileInput = document.getElementById('chatFile');
   document.getElementById('chatSend').onclick = sendChat;
   input.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } };
+  document.getElementById('chatAttach').onclick = () => fileInput.click();
+  fileInput.onchange = () => {
+    const f = [...fileInput.files].find(x => x.type.startsWith('image/'));
+    fileInput.value = '';
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { chatPendingImage = reader.result; updateChatPreview(); };
+    reader.readAsDataURL(f);
+  };
   document.getElementById('chatClear').onclick = () => {
     if (!confirm('Clear this conversation?')) return;
     state.chat = []; saveState(); renderChatMessages();
   };
+}
+function updateChatPreview() {
+  const p = document.getElementById('chatPreview');
+  if (!p) return;
+  if (chatPendingImage) {
+    p.classList.remove('hidden');
+    p.innerHTML = '';
+    const im = document.createElement('img');
+    im.src = chatPendingImage;
+    const rm = document.createElement('button');
+    rm.className = 'btn';
+    rm.textContent = 'Remove';
+    rm.onclick = () => { chatPendingImage = null; updateChatPreview(); };
+    p.appendChild(im);
+    p.appendChild(rm);
+  } else {
+    p.classList.add('hidden');
+    p.innerHTML = '';
+  }
 }
 function renderChatMessages() {
   const box = document.getElementById('chatMessages');
@@ -1092,35 +1144,69 @@ function renderChatMessages() {
   state.chat.forEach(m => {
     const d = document.createElement('div');
     d.className = 'msg ' + (m.role === 'user' ? 'user' : 'ai');
-    const txt = document.createElement('div');
-    txt.textContent = m.content;
-    d.appendChild(txt);
-    if (m.role === 'assistant') {
-      const c = document.createElement('button');
-      c.className = 'copy';
-      c.textContent = 'Copy';
-      c.onclick = () => { navigator.clipboard.writeText(m.content); c.textContent = 'Copied'; setTimeout(() => c.textContent = 'Copy', 1200); };
-      d.appendChild(c);
+    if (m.content) {
+      const txt = document.createElement('div');
+      txt.textContent = m.content;
+      d.appendChild(txt);
+    }
+    if (m.image) {
+      const im = document.createElement('img');
+      im.className = 'chat-thumb';
+      im.src = m.image;
+      d.appendChild(im);
     }
     box.appendChild(d);
+
+    // Render any Midjourney prompt the AI produced as its own copyable card
+    if (m.role === 'assistant') {
+      const prompts = (m.content || '').split('\n').map(l => l.trim()).filter(l => /--ar/i.test(l));
+      prompts.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'prompt-card';
+        const pt = document.createElement('div');
+        pt.className = 'pc-text';
+        pt.textContent = p;
+        const acts = document.createElement('div');
+        acts.className = 'pc-acts';
+        const copy = document.createElement('button');
+        copy.textContent = 'Copy prompt';
+        copy.onclick = () => { navigator.clipboard.writeText(p); copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy prompt', 1200); };
+        const save = document.createElement('button');
+        save.className = 'primary';
+        save.textContent = 'Save prompt';
+        save.onclick = () => { if (savePrompt(p, 'chat')) { save.textContent = 'Saved ✓'; setTimeout(() => save.textContent = 'Save prompt', 1400); } };
+        acts.appendChild(copy);
+        acts.appendChild(save);
+        card.appendChild(pt);
+        card.appendChild(acts);
+        box.appendChild(card);
+      });
+    }
   });
   box.scrollTop = box.scrollHeight;
 }
 async function sendChat() {
   const input = document.getElementById('chatInput');
   const text = (input.value || '').trim();
-  if (!text) return;
-  state.chat.push({ role: 'user', content: text });
+  if (!text && !chatPendingImage) return;
+  const msg = { role: 'user', content: text };
+  if (chatPendingImage) msg.image = chatPendingImage;
+  state.chat.push(msg);
   input.value = '';
+  chatPendingImage = null;
+  updateChatPreview();
   saveState();
   renderChatMessages();
   const status = document.getElementById('chatStatus');
   if (status) status.textContent = 'Thinking…';
   try {
+    const apiMessages = state.chat.map(m => m.image
+      ? { role: m.role, content: [{ type: 'text', text: m.content || '' }, { type: 'image_url', image_url: { url: m.image } }] }
+      : { role: m.role, content: m.content });
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: state.chat })
+      body: JSON.stringify({ messages: apiMessages })
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));

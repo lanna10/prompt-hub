@@ -178,7 +178,7 @@ app.post('/api/chat', async (req, res) => {
     };
 
     const clean = messages
-      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && (typeof m.content === 'string' || Array.isArray(m.content)))
       .slice(-20)
       .map(m => ({ role: m.role, content: m.content }));
 
