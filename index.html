@@ -168,6 +168,31 @@
   .saved-item .mini:hover { background: var(--soft); }
   .saved-item .mini.del:hover { background: #fee2e2; border-color: #fecaca; color: #ef4444; }
   .saved-empty { color: var(--muted); font-size: 12px; }
+  /* chat */
+  .chat { display: flex; flex-direction: column; }
+  .chat-messages {
+    border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--shadow);
+    padding: 16px; min-height: 320px; max-height: 56vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .chat-empty { color: var(--muted); font-size: 13px; text-align: center; margin: auto; text-transform: none; }
+  .msg {
+    max-width: 82%; padding: 11px 14px; border-radius: 16px; font-size: 13px; line-height: 1.55;
+    text-transform: none; white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user { align-self: flex-end; background: var(--blue); color: #fff; border-bottom-right-radius: 5px; }
+  .msg.ai { align-self: flex-start; background: var(--soft); color: var(--text); border-bottom-left-radius: 5px; }
+  .msg .copy {
+    margin-top: 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    cursor: pointer; background: none; border: none; color: var(--blue); padding: 0;
+  }
+  .chat-input { display: flex; gap: 10px; margin-top: 14px; align-items: flex-end; }
+  .chat-input textarea {
+    flex: 1; min-height: 54px; max-height: 160px; resize: vertical;
+    border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--text);
+    padding: 12px 14px; font-family: inherit; font-size: 13px; text-transform: none; line-height: 1.5;
+  }
+  .chat-input textarea:focus { outline: none; border-color: var(--blue); }
   /* ---------- Main ---------- */
   main { flex: 1; min-width: 0; }
   .page-head {
@@ -372,6 +397,7 @@
     <div class="tool-head">Tools</div>
     <button class="tool-item" id="aiTab"><span class="tool-ic">✨</span><span>Image → Prompt</span></button>
     <button class="tool-item" id="textTab"><span class="tool-ic">✍︎</span><span>Text → Prompt</span></button>
+    <button class="tool-item" id="chatTab"><span class="tool-ic">✦</span><span>Prompt Chat</span></button>
     <div class="side-foot">Saves automatically · double-click a tab to rename</div>
   </aside>
 
@@ -396,7 +422,7 @@ function defaultState() {
   for (let i = 1; i <= 6; i++) {
     tabs.push({ id: 't' + i, def: 'TikTok ' + i, name: null, accent: ACCENTS[(i - 1) % ACCENTS.length], prompt: '' });
   }
-  return { tabs, nextNum: 7, saved: [] };
+  return { tabs, nextNum: 7, saved: [], chat: [] };
 }
 function loadState() {
   try {
@@ -414,6 +440,7 @@ let state = loadState();
 let active = state.tabs[0].id;
 const AI_VIEW = '__ai__';
 const TEXT_VIEW = '__text__';
+const CHAT_VIEW = '__chat__';
 let aiImage = null;
 
 function saveState() {
@@ -431,7 +458,7 @@ function pushToServer() {
     fetch('/api/data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tabs: state.tabs, nextNum: state.nextNum, saved: state.saved, images: imageCache })
+      body: JSON.stringify({ tabs: state.tabs, nextNum: state.nextNum, saved: state.saved, chat: state.chat || [], images: imageCache })
     }).catch(() => {});
   } catch (e) {}
 }
@@ -441,7 +468,7 @@ async function loadFromServer() {
     if (r.ok) {
       const d = await r.json();
       if (d && Array.isArray(d.tabs) && d.tabs.length) {
-        state = { tabs: d.tabs, nextNum: d.nextNum || (d.tabs.length + 1), saved: d.saved || [] };
+        state = { tabs: d.tabs, nextNum: d.nextNum || (d.tabs.length + 1), saved: d.saved || [], chat: d.chat || [] };
         Object.keys(imageCache).forEach(k => delete imageCache[k]);
         Object.assign(imageCache, d.images || {});
         if (!getTab(active)) active = state.tabs[0].id;
@@ -563,6 +590,8 @@ function renderNav() {
   if (aiTab) aiTab.classList.toggle('active', active === AI_VIEW);
   const textTab = document.getElementById('textTab');
   if (textTab) textTab.classList.toggle('active', active === TEXT_VIEW);
+  const chatTab = document.getElementById('chatTab');
+  if (chatTab) chatTab.classList.toggle('active', active === CHAT_VIEW);
 }
 
 function renderMain() {
@@ -570,6 +599,7 @@ function renderMain() {
   const subtitle = document.getElementById('subtitle');
   if (active === AI_VIEW) { renderAIView(nameInput, subtitle); return; }
   if (active === TEXT_VIEW) { renderTextView(nameInput, subtitle); return; }
+  if (active === CHAT_VIEW) { renderChatView(nameInput, subtitle); return; }
   nameInput.readOnly = false;
   subtitle.textContent = 'Prompt & moodboard for this account';
   const t = getTab(active);
@@ -839,7 +869,7 @@ async function generateAIPrompt() {
     const r = await fetch('/api/prompt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: aiImage })
+      body: JSON.stringify({ image: aiImage, previous: (document.getElementById('aiResult').value || '').trim() })
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
@@ -957,7 +987,7 @@ async function generateTextPrompt() {
     const r = await fetch('/api/text-prompt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: idea })
+      body: JSON.stringify({ text: idea, previous: (document.getElementById('ideaResult').value || '').trim() })
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
@@ -1017,11 +1047,100 @@ function renderSavedList() {
   });
 }
 
+// ---- Prompt Chat view ----
+function renderChatView(nameInput, subtitle) {
+  nameInput.value = 'Prompt Chat';
+  nameInput.readOnly = true;
+  nameInput.oninput = null;
+  subtitle.textContent = 'Brainstorm and refine prompts with AI';
+  if (!state.chat) state.chat = [];
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="chat">
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input">
+        <textarea id="chatInput" placeholder="Tell me what you're going for… e.g. a rooftop afterparty in Tokyo at dawn"></textarea>
+        <button class="btn primary" id="chatSend">Send</button>
+      </div>
+      <div class="ai-row">
+        <button class="btn" id="chatClear">Clear chat</button>
+        <span class="savedflag" id="chatStatus"></span>
+      </div>
+    </div>
+  `;
+  renderChatMessages();
+  const input = document.getElementById('chatInput');
+  document.getElementById('chatSend').onclick = sendChat;
+  input.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } };
+  document.getElementById('chatClear').onclick = () => {
+    if (!confirm('Clear this conversation?')) return;
+    state.chat = []; saveState(); renderChatMessages();
+  };
+}
+function renderChatMessages() {
+  const box = document.getElementById('chatMessages');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!state.chat || !state.chat.length) {
+    const e = document.createElement('div');
+    e.className = 'chat-empty';
+    e.textContent = 'Start chatting to develop a prompt — I’ll suggest Midjourney prompts as we go.';
+    box.appendChild(e);
+    return;
+  }
+  state.chat.forEach(m => {
+    const d = document.createElement('div');
+    d.className = 'msg ' + (m.role === 'user' ? 'user' : 'ai');
+    const txt = document.createElement('div');
+    txt.textContent = m.content;
+    d.appendChild(txt);
+    if (m.role === 'assistant') {
+      const c = document.createElement('button');
+      c.className = 'copy';
+      c.textContent = 'Copy';
+      c.onclick = () => { navigator.clipboard.writeText(m.content); c.textContent = 'Copied'; setTimeout(() => c.textContent = 'Copy', 1200); };
+      d.appendChild(c);
+    }
+    box.appendChild(d);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = (input.value || '').trim();
+  if (!text) return;
+  state.chat.push({ role: 'user', content: text });
+  input.value = '';
+  saveState();
+  renderChatMessages();
+  const status = document.getElementById('chatStatus');
+  if (status) status.textContent = 'Thinking…';
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: state.chat })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+    state.chat.push({ role: 'assistant', content: d.reply || '' });
+    saveState();
+    renderChatMessages();
+  } catch (e) {
+    state.chat.push({ role: 'assistant', content: '⚠︎ Couldn’t reach the AI. (' + e.message + ')' });
+    renderChatMessages();
+  } finally {
+    if (status) status.textContent = '';
+  }
+}
+
 function render() { renderNav(); renderMain(); }
 
 document.getElementById('addTab').onclick = addTab;
 document.getElementById('aiTab').onclick = () => { active = AI_VIEW; render(); };
 document.getElementById('textTab').onclick = () => { active = TEXT_VIEW; render(); };
+document.getElementById('chatTab').onclick = () => { active = CHAT_VIEW; render(); };
 
 // ---- Landing splash ----
 (function () {

@@ -42,13 +42,13 @@ app.post('/api/data', (req, res) => {
 // POST /api/prompt  { image: "data:image/...;base64,..." }  ->  { prompt: "..." }
 app.post('/api/prompt', async (req, res) => {
   try {
-    const { image } = req.body || {};
+    const { image, previous } = req.body || {};
     if (!image) return res.status(400).json({ error: 'No image provided.' });
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ error: 'Server is missing OPENAI_API_KEY.' });
     }
 
-    const instruction =
+    let instruction =
       'You are an expert Midjourney prompt writer for moody, cinematic nightlife and fashion content. ' +
       'Study the uploaded image closely and write ONE richly descriptive, highly detailed Midjourney prompt that ' +
       'faithfully recreates its vibe so generated results closely match it: the setting and scene, the subjects and ' +
@@ -63,6 +63,11 @@ app.post('/api/prompt', async (req, res) => {
       'Mediterranean nightlife atmosphere"\n' +
       'Write about 35-60 words as comma-separated descriptive phrases. ' +
       'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
+    if (previous && previous.trim()) {
+      instruction += '\n\nIMPORTANT: Give a DISTINCTLY DIFFERENT visual style from this previous prompt — change the camera ' +
+        'angle, shot type, lens/film stock, lighting approach, time of day, and color treatment so Midjourney produces a ' +
+        'clearly different image — while keeping the SAME subject, setting, and overall vibe. Previous prompt to differ from: "' + previous.trim() + '".';
+    }
 
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -98,13 +103,13 @@ app.post('/api/prompt', async (req, res) => {
 // POST /api/text-prompt  { text: "rough idea" }  ->  { prompt: "..." }
 app.post('/api/text-prompt', async (req, res) => {
   try {
-    const { text } = req.body || {};
+    const { text, previous } = req.body || {};
     if (!text || !text.trim()) return res.status(400).json({ error: 'No description provided.' });
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ error: 'Server is missing OPENAI_API_KEY.' });
     }
 
-    const instruction =
+    let instruction =
       'You are an expert Midjourney prompt writer for moody, cinematic nightlife and fashion content. ' +
       'Take the user\'s short idea and expand it into ONE richly descriptive, highly detailed Midjourney prompt that ' +
       'brings it to life: a vivid setting and scene, the subjects and their styling, lighting, color palette, mood, era, ' +
@@ -119,6 +124,11 @@ app.post('/api/text-prompt', async (req, res) => {
       'Mediterranean nightlife atmosphere"\n' +
       'Write about 35-60 words as comma-separated descriptive phrases. ' +
       'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
+    if (previous && previous.trim()) {
+      instruction += '\n\nIMPORTANT: Give a DISTINCTLY DIFFERENT visual style from this previous prompt — change the camera ' +
+        'angle, shot type, lens/film stock, lighting approach, time of day, and color treatment so Midjourney produces a ' +
+        'clearly different image — while keeping the SAME subject and overall vibe. Previous prompt to differ from: "' + previous.trim() + '".';
+    }
 
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -143,6 +153,55 @@ app.post('/api/text-prompt', async (req, res) => {
     }
     const prompt = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
     res.json({ prompt });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Unexpected server error.' });
+  }
+});
+
+// POST /api/chat  { messages: [{role, content}] }  ->  { reply: "..." }
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { messages } = req.body || {};
+    if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'No messages provided.' });
+    if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: 'Server is missing OPENAI_API_KEY.' });
+
+    const system = {
+      role: 'system',
+      content:
+        'You are a creative director helping the user develop Midjourney image prompts for moody, cinematic ' +
+        'nightlife and fashion content (same world as: "Berlin Berghain-inspired techno club… gritty documentary ' +
+        'realism, grainy early 2000s flash photography" and "1980s Amalfi Coast jet-set nightclub… cinematic analog ' +
+        'film grain"). Chat naturally and briefly to help them shape their idea, asking the occasional clarifying ' +
+        'question. Whenever you propose a ready-to-use prompt, put it on its own line, write it as rich comma-separated ' +
+        'descriptive phrases (setting, subjects, styling, lighting, color, mood, era, film texture), and end that line ' +
+        'with " --ar 9:16". Keep replies concise.'
+    };
+
+    const clean = messages
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-20)
+      .map(m => ({ role: m.role, content: m.content }));
+
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        max_tokens: 500,
+        temperature: 0.9,
+        messages: [system, ...clean]
+      })
+    });
+
+    const data = await r.json();
+    if (!r.ok || data.error) {
+      return res.status(502).json({ error: (data.error && data.error.message) || ('OpenAI error ' + r.status) });
+    }
+    const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
+    res.json({ reply });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Unexpected server error.' });
   }
