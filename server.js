@@ -10,6 +10,28 @@ app.use(express.json({ limit: '50mb' }));
 // Serve the static site (index.html etc.) from this folder
 app.use(express.static(__dirname));
 
+// Builds a strong "make this version different" instruction for regenerations.
+const VARIATION_AXES = [
+  'an extreme wide establishing shot', 'a tight intimate close-up', 'a high overhead / aerial angle',
+  'a low-angle shot looking up', 'a candid over-the-shoulder snapshot', 'a profile side view',
+  'shot on a disposable camera with harsh direct flash', 'shot on grainy Super 8 film',
+  'shot on large-format film with shallow depth of field', 'a CCTV / security-camera still',
+  'a blurry motion-filled action frame', 'a mirror / reflection shot',
+  'golden-hour warm light', 'cold blue 3am light', 'harsh midday sun', 'neon-soaked night',
+  'foggy / hazy atmosphere', 'rain-soaked reflective surfaces', 'backlit silhouette', 'deep shadow chiaroscuro'
+];
+function divergenceNote(previous) {
+  if (!previous || !previous.trim()) return '';
+  const a = VARIATION_AXES[Math.floor(Math.random() * VARIATION_AXES.length)];
+  let b = VARIATION_AXES[Math.floor(Math.random() * VARIATION_AXES.length)];
+  if (b === a) b = VARIATION_AXES[(VARIATION_AXES.indexOf(a) + 5) % VARIATION_AXES.length];
+  return '\n\nIMPORTANT: This is an ALTERNATE version. Keep ONLY the same overall vibe and aesthetic family ' +
+    '(mood, genre, color world, era) — but make the actual image clearly DIFFERENT, NOT a near-duplicate. ' +
+    'Change the specific scene and location, the subjects and what they are doing, the composition, camera angle, ' +
+    'lens/film stock, lighting, time of day, and color accents. For this version specifically, reinterpret it as ' +
+    a + ' and ' + b + '. Previous prompt to clearly diverge from: "' + previous.trim() + '".';
+}
+
 // ---- Persistent storage (tabs, prompts, moodboard images) ----
 // Uses a Render persistent disk mounted at /var/data (override with DATA_DIR).
 const DATA_DIR = process.env.DATA_DIR || '/var/data';
@@ -63,11 +85,7 @@ app.post('/api/prompt', async (req, res) => {
       'Mediterranean nightlife atmosphere"\n' +
       'Write about 35-60 words as comma-separated descriptive phrases. ' +
       'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
-    if (previous && previous.trim()) {
-      instruction += '\n\nIMPORTANT: Give a DISTINCTLY DIFFERENT visual style from this previous prompt — change the camera ' +
-        'angle, shot type, lens/film stock, lighting approach, time of day, and color treatment so Midjourney produces a ' +
-        'clearly different image — while keeping the SAME subject, setting, and overall vibe. Previous prompt to differ from: "' + previous.trim() + '".';
-    }
+    instruction += divergenceNote(previous);
 
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -78,7 +96,7 @@ app.post('/api/prompt', async (req, res) => {
       body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 400,
-        temperature: 1,
+        temperature: 1.05,
         messages: [{
           role: 'user',
           content: [
@@ -124,11 +142,7 @@ app.post('/api/text-prompt', async (req, res) => {
       'Mediterranean nightlife atmosphere"\n' +
       'Write about 35-60 words as comma-separated descriptive phrases. ' +
       'Output ONLY the prompt text — no quotes, no preamble, no explanation. End the prompt with " --ar 9:16".';
-    if (previous && previous.trim()) {
-      instruction += '\n\nIMPORTANT: Give a DISTINCTLY DIFFERENT visual style from this previous prompt — change the camera ' +
-        'angle, shot type, lens/film stock, lighting approach, time of day, and color treatment so Midjourney produces a ' +
-        'clearly different image — while keeping the SAME subject and overall vibe. Previous prompt to differ from: "' + previous.trim() + '".';
-    }
+    instruction += divergenceNote(previous);
 
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -139,7 +153,7 @@ app.post('/api/text-prompt', async (req, res) => {
       body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 400,
-        temperature: 1,
+        temperature: 1.05,
         messages: [
           { role: 'system', content: instruction },
           { role: 'user', content: 'Idea: ' + text }

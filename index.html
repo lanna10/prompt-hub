@@ -203,7 +203,11 @@
     box-shadow: var(--shadow);
   }
   .prompt-card .pc-text { font-size: 12.5px; line-height: 1.5; text-transform: none; white-space: pre-wrap; }
-  .prompt-card .pc-acts { display: flex; gap: 8px; margin-top: 10px; }
+  .prompt-card .pc-acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .prompt-card .pc-select {
+    font-family: inherit; font-size: 11px; font-weight: 600; color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff;
+  }
   .prompt-card .pc-acts button {
     font-family: inherit; font-weight: 700; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
     cursor: pointer; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); padding: 6px 11px;
@@ -1090,8 +1094,20 @@ function renderChatView(nameInput, subtitle) {
         <span class="savedflag" id="chatStatus"></span>
       </div>
     </div>
+
+    <hr class="divider" style="margin-top: 22px;">
+    <section class="block">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Saved prompts</h2>
+          <p class="section-desc">Prompts you save appear here (and in your other tools). Use a card’s dropdown to file one under a tab.</p>
+        </div>
+      </div>
+      <div id="savedList"></div>
+    </section>
   `;
   renderChatMessages();
+  renderSavedList();
   updateChatPreview();
   const input = document.getElementById('chatInput');
   const fileInput = document.getElementById('chatFile');
@@ -1174,9 +1190,20 @@ function renderChatMessages() {
         const save = document.createElement('button');
         save.className = 'primary';
         save.textContent = 'Save prompt';
-        save.onclick = () => { if (savePrompt(p, 'chat')) { save.textContent = 'Saved ✓'; setTimeout(() => save.textContent = 'Save prompt', 1400); } };
+        save.onclick = () => { if (savePrompt(p, 'chat')) { save.textContent = 'Saved ✓'; setTimeout(() => save.textContent = 'Save prompt', 1400); renderSavedList(); } };
+        const sel = document.createElement('select');
+        sel.className = 'pc-select';
+        sel.innerHTML = state.tabs.map(t => '<option value="' + t.id + '">' + (t.name || t.def) + '</option>').join('');
+        const add = document.createElement('button');
+        add.textContent = 'Add to tab';
+        add.onclick = () => {
+          const t = getTab(sel.value);
+          if (t) { t.prompt = t.prompt ? (t.prompt + '\n\n' + p) : p; saveState(); add.textContent = 'Added ✓'; setTimeout(() => add.textContent = 'Add to tab', 1400); }
+        };
         acts.appendChild(copy);
         acts.appendChild(save);
+        acts.appendChild(sel);
+        acts.appendChild(add);
         card.appendChild(pt);
         card.appendChild(acts);
         box.appendChild(card);
