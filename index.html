@@ -536,17 +536,22 @@ function flashSaved() {
 
 // ---- Moodboard images (kept in memory, saved to the server) ----
 const imageCache = {};
-function addImageRecord(tab, dataUrl) {
-  const rec = { id: tab + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), tab, dataUrl, ts: Date.now() };
-  (imageCache[tab] = imageCache[tab] || []).push(rec);
+function imgUrl(im) { return im && im.dataUrl ? im.dataUrl : ('/img/' + im.id + '.' + (im.ext || 'jpg')); }
+async function addImageRecord(tab, dataUrl) {
+  const r = await fetch('/api/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error || !d.id) throw new Error(d.error || ('HTTP ' + r.status));
+  (imageCache[tab] = imageCache[tab] || []).push({ id: d.id, ext: d.ext, ts: Date.now() });
   saveState();
-  return rec;
 }
 function removeImageRecord(tab, id) {
-  imageCache[tab] = (imageCache[tab] || []).filter(im => im.id !== id);
+  const im = (imageCache[tab] || []).find(x => x.id === id);
+  imageCache[tab] = (imageCache[tab] || []).filter(x => x.id !== id);
   saveState();
+  if (im && !im.dataUrl) fetch('/api/image/' + encodeURIComponent(im.id + '.' + (im.ext || 'jpg')), { method: 'DELETE' }).catch(() => {});
 }
 function deleteTabImages(tabId) {
+  (imageCache[tabId] || []).forEach(im => { if (im && !im.dataUrl) fetch('/api/image/' + encodeURIComponent(im.id + '.' + (im.ext || 'jpg')), { method: 'DELETE' }).catch(() => {}); });
   delete imageCache[tabId];
 }
 
@@ -887,10 +892,14 @@ async function addTikTok(user) {
 function handleFiles(files, tabId) {
   [...files].filter(f => f.type.startsWith('image/')).forEach(f => {
     const reader = new FileReader();
-    reader.onload = () => {
-      addImageRecord(tabId, reader.result);
-      if (tabId === active) renderGrid(tabId);
-      flashSaved();
+    reader.onload = async () => {
+      try {
+        await addImageRecord(tabId, reader.result);
+        if (tabId === active) renderGrid(tabId);
+        flashSaved();
+      } catch (e) {
+        alert('Could not save image: ' + e.message);
+      }
     };
     reader.readAsDataURL(f);
   });
@@ -899,10 +908,10 @@ function handleFiles(files, tabId) {
 function downloadImage(im, tabId, index) {
   const t = getTab(tabId);
   const base = (t.name || t.def).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'moodboard';
-  const m = /^data:image\/(\w+)/.exec(im.dataUrl);
-  const ext = m ? m[1].replace('jpeg', 'jpg') : 'png';
+  let ext = im.ext || (/^data:image\/(\w+)/.exec(im.dataUrl || '') || [])[1] || 'jpg';
+  if (ext === 'jpeg') ext = 'jpg';
   const a = document.createElement('a');
-  a.href = im.dataUrl;
+  a.href = imgUrl(im);
   a.download = base + '-' + index + '.' + ext;
   document.body.appendChild(a);
   a.click();
@@ -957,7 +966,7 @@ function renderGrid(tabId) {
     const card = document.createElement('div');
     card.className = 'mb-card reveal';
     card.style.transitionDelay = Math.min(i, 8) * 45 + 'ms';
-    card.innerHTML = '<img src="' + im.dataUrl + '">';
+    card.innerHTML = '<img loading="lazy" src="' + imgUrl(im) + '">';
 
     const dl = document.createElement('button');
     dl.className = 'dl';

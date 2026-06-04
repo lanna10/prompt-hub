@@ -36,8 +36,42 @@ function divergenceNote(previous) {
 // Uses a Render persistent disk mounted at /var/data (override with DATA_DIR).
 const DATA_DIR = process.env.DATA_DIR || '/var/data';
 const DATA_FILE = path.join(DATA_DIR, 'state.json');
-function ensureDataDir() { try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {} }
+const IMG_DIR = path.join(DATA_DIR, 'img');
+function ensureDataDir() { try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.mkdirSync(IMG_DIR, { recursive: true }); } catch (e) {} }
 ensureDataDir();
+
+// Serve stored moodboard images as files
+app.use('/img', express.static(IMG_DIR));
+
+// One-time migration: pull any base64 images out of state.json into individual files
+function migrateImagesToFiles() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const state = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    if (!state || !state.images || typeof state.images !== 'object') return;
+    let changed = false;
+    for (const tab of Object.keys(state.images)) {
+      const arr = Array.isArray(state.images[tab]) ? state.images[tab] : [];
+      state.images[tab] = arr.map(im => {
+        if (im && im.dataUrl) {
+          const m = /^data:image\/(\w+);base64,(.*)$/.exec(im.dataUrl);
+          if (m) {
+            const ext = m[1].replace('jpeg', 'jpg');
+            const id = im.id || ('img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+            try {
+              fs.writeFileSync(path.join(IMG_DIR, id + '.' + ext), Buffer.from(m[2], 'base64'));
+              changed = true;
+              return { id: id, ext: ext, ts: im.ts || Date.now() };
+            } catch (e) { return im; }
+          }
+        }
+        return im;
+      });
+    }
+    if (changed) fs.writeFileSync(DATA_FILE, JSON.stringify(state));
+  } catch (e) { console.log('image migration skipped:', e.message); }
+}
+migrateImagesToFiles();
 
 app.get('/api/data', (req, res) => {
   try {
@@ -59,6 +93,28 @@ app.post('/api/data', (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// POST /api/image  { dataUrl }  -> saves image file, returns { id, ext }
+app.post('/api/image', (req, res) => {
+  try {
+    const dataUrl = (req.body && req.body.dataUrl) || '';
+    const m = /^data:image\/(\w+);base64,(.*)$/.exec(dataUrl);
+    if (!m) return res.status(400).json({ error: 'Bad image data.' });
+    ensureDataDir();
+    const ext = m[1].replace('jpeg', 'jpg');
+    const id = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    fs.writeFileSync(path.join(IMG_DIR, id + '.' + ext), Buffer.from(m[2], 'base64'));
+    res.json({ id: id, ext: ext });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Unexpected server error.' });
+  }
+});
+
+// DELETE /api/image/:file  -> removes an image file
+app.delete('/api/image/:file', (req, res) => {
+  try { fs.unlinkSync(path.join(IMG_DIR, path.basename(req.params.file))); } catch (e) {}
+  res.json({ ok: true });
 });
 
 // POST /api/prompt  { image: "data:image/...;base64,..." }  ->  { prompt: "..." }
