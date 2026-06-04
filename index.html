@@ -303,7 +303,7 @@
     position: relative; aspect-ratio: 1 / 1; border-radius: 12px;
     overflow: hidden; background: var(--soft); border: 1px solid var(--line); box-shadow: var(--shadow);
   }
-  .mb-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mb-card img, .mb-card video, .mb-card .mb-media { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
   .mb-card .del, .mb-card .dl {
     position: absolute; top: 8px; width: 30px; height: 30px;
     border: none; border-radius: 8px; cursor: pointer;
@@ -678,11 +678,11 @@ function renderMain() {
       <div class="section-head">
         <div>
           <h2 class="section-title">Moodboard</h2>
-          <p class="section-desc">Drop in reference pics to build the vibe. Hover an image to download or remove it.</p>
+          <p class="section-desc">Drop in reference pics &amp; videos to build the vibe. Hover to download or remove.</p>
         </div>
         <span style="display:flex; gap:8px;">
           <button class="btn" id="dlAllBtn">↓ Download all</button>
-          <button class="btn primary" id="addBtn">+ Add images</button>
+          <button class="btn primary" id="addBtn">+ Add media</button>
         </span>
       </div>
       <div class="search-row">
@@ -693,8 +693,8 @@ function renderMain() {
         <a class="pill" href="https://www.bing.com/visualsearch" target="_blank" rel="noopener">Bing</a>
         <a class="pill" href="https://www.pinterest.com/search/" target="_blank" rel="noopener">Pinterest</a>
       </div>
-      <div class="dropzone" id="dropzone">Drag &amp; drop images, or click to choose from your computer</div>
-      <input type="file" id="fileInput" accept="image/*" multiple class="hidden">
+      <div class="dropzone" id="dropzone">Drag &amp; drop images or videos, or click to choose from your computer</div>
+      <input type="file" id="fileInput" accept="image/*,video/*" multiple class="hidden">
       <div class="grid" id="grid"></div>
       <div class="empty hidden" id="emptyMsg">No images yet — add some to build the vibe.</div>
     </section>
@@ -889,19 +889,29 @@ async function addTikTok(user) {
   }
 }
 
+function isVideoExt(ext) { return /^(mp4|mov|webm|m4v|ogg|ogv)$/i.test(ext || ''); }
+async function addMedia(tab, file) {
+  let ext = (file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!ext) ext = (file.type.split('/')[1] || 'bin').toLowerCase();
+  const r = await fetch('/api/upload?ext=' + encodeURIComponent(ext), {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.id) throw new Error(d.error || ('HTTP ' + r.status));
+  (imageCache[tab] = imageCache[tab] || []).push({ id: d.id, ext: d.ext, ts: Date.now() });
+  saveState();
+}
 function handleFiles(files, tabId) {
-  [...files].filter(f => f.type.startsWith('image/')).forEach(f => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        await addImageRecord(tabId, reader.result);
-        if (tabId === active) renderGrid(tabId);
-        flashSaved();
-      } catch (e) {
-        alert('Could not save image: ' + e.message);
-      }
-    };
-    reader.readAsDataURL(f);
+  [...files].filter(f => f.type.startsWith('image/') || f.type.startsWith('video/')).forEach(async f => {
+    try {
+      await addMedia(tabId, f);
+      if (tabId === active) renderGrid(tabId);
+      flashSaved();
+    } catch (e) {
+      alert('Could not save file: ' + e.message);
+    }
   });
 }
 
@@ -966,7 +976,9 @@ function renderGrid(tabId) {
     const card = document.createElement('div');
     card.className = 'mb-card reveal';
     card.style.transitionDelay = Math.min(i, 8) * 45 + 'ms';
-    card.innerHTML = '<img loading="lazy" src="' + imgUrl(im) + '">';
+    card.innerHTML = isVideoExt(im.ext)
+      ? '<video class="mb-media" src="' + imgUrl(im) + '" controls muted playsinline preload="metadata"></video>'
+      : '<img class="mb-media" loading="lazy" src="' + imgUrl(im) + '">';
 
     const dl = document.createElement('button');
     dl.className = 'dl';

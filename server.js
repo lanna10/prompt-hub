@@ -111,10 +111,30 @@ app.post('/api/image', (req, res) => {
   }
 });
 
-// DELETE /api/image/:file  -> removes an image file
+// DELETE /api/image/:file  -> removes an image/video file
 app.delete('/api/image/:file', (req, res) => {
   try { fs.unlinkSync(path.join(IMG_DIR, path.basename(req.params.file))); } catch (e) {}
   res.json({ ok: true });
+});
+
+// POST /api/upload?ext=mp4  (raw binary body) -> streams file to disk, returns { id, ext }
+// Used for moodboard images AND videos. Streaming avoids loading the whole file into memory.
+app.post('/api/upload', (req, res) => {
+  try {
+    ensureDataDir();
+    const ext = String(req.query.ext || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'bin';
+    const id = 'med_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const filePath = path.join(IMG_DIR, id + '.' + ext);
+    const ws = fs.createWriteStream(filePath);
+    let done = false;
+    const fail = (e) => { if (done) return; done = true; try { ws.destroy(); fs.unlinkSync(filePath); } catch (x) {} res.status(500).json({ error: (e && e.message) || 'upload failed' }); };
+    req.on('error', fail);
+    ws.on('error', fail);
+    ws.on('finish', () => { if (done) return; done = true; res.json({ id: id, ext: ext }); });
+    req.pipe(ws);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Unexpected server error.' });
+  }
 });
 
 // POST /api/prompt  { image: "data:image/...;base64,..." }  ->  { prompt: "..." }
