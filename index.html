@@ -434,7 +434,6 @@
     <button class="add-tab" id="addTab"><span class="plus">+</span><span>New tab</span></button>
     <div class="tool-head">Tools</div>
     <button class="tool-item" id="aiTab"><span class="tool-ic">✨</span><span>Image → Prompt</span></button>
-    <button class="tool-item" id="textTab"><span class="tool-ic">✍︎</span><span>Text → Prompt</span></button>
     <button class="tool-item" id="chatTab"><span class="tool-ic">✦</span><span>Prompt Chat</span></button>
     <div class="side-foot">Saves automatically · double-click a tab to rename</div>
   </aside>
@@ -1565,7 +1564,6 @@ function render() { renderNav(); renderMain(); }
 
 document.getElementById('addTab').onclick = addTab;
 document.getElementById('aiTab').onclick = () => { active = AI_VIEW; render(); };
-document.getElementById('textTab').onclick = () => { active = TEXT_VIEW; render(); };
 document.getElementById('chatTab').onclick = () => { active = CHAT_VIEW; render(); };
 
 // ---- Landing splash ----
