@@ -497,7 +497,12 @@ function scheduleServerSave() {
   clearTimeout(serverSaveTimer);
   serverSaveTimer = setTimeout(pushToServer, 700);
 }
+// Guard: only ever write to the server AFTER we've successfully read it once.
+// This prevents an empty in-memory state from overwriting saved data when the
+// server is briefly unreachable (e.g. during a restart).
+let serverReady = false;
 function pushToServer() {
+  if (!serverReady) return;
   try {
     fetch('/api/data', {
       method: 'POST',
@@ -517,11 +522,14 @@ async function loadFromServer() {
         Object.assign(imageCache, d.images || {});
         if (!getTab(active)) active = state.tabs[0].id;
         try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
-        return true;
+        serverReady = true;
+        return 'loaded';
       }
+      serverReady = true;   // server reachable but empty — safe to seed
+      return 'empty';
     }
   } catch (e) {}
-  return false;
+  return 'error';
 }
 function getTab(id) { return state.tabs.find(t => t.id === id); }
 
@@ -681,6 +689,7 @@ function renderMain() {
           <p class="section-desc">Drop in reference pics &amp; videos to build the vibe. Hover to download or remove.</p>
         </div>
         <span style="display:flex; gap:8px;">
+          <button class="btn" id="recoverBtn" title="Re-attach media files found on the server">↺ Recover</button>
           <button class="btn" id="dlAllBtn">↓ Download all</button>
           <button class="btn primary" id="addBtn">+ Add media</button>
         </span>
@@ -741,6 +750,7 @@ function renderMain() {
   const dropzone = document.getElementById('dropzone');
   document.getElementById('addBtn').onclick = () => fileInput.click();
   document.getElementById('dlAllBtn').onclick = () => downloadAllImages(t.id);
+  document.getElementById('recoverBtn').onclick = () => recoverMedia(t);
   dropzone.onclick = () => fileInput.click();
   fileInput.onchange = () => handleFiles(fileInput.files, t.id);
   dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('drag'); };
@@ -957,6 +967,25 @@ function renderTabPrompts(t) {
     row.appendChild(acts);
     wrap.appendChild(row);
   });
+}
+
+async function recoverMedia(t) {
+  try {
+    const r = await fetch('/api/media-files');
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !Array.isArray(d.files)) throw new Error(d.error || ('HTTP ' + r.status));
+    const have = new Set();
+    Object.values(imageCache).forEach(a => (a || []).forEach(im => have.add(im.id)));
+    const orphans = d.files.filter(f => f.id && !have.has(f.id));
+    if (!orphans.length) { alert('No unattached media found on the server.'); return; }
+    if (!confirm('Found ' + orphans.length + ' media file(s) on the server not shown in any tab. Add them to "' + (t.name || t.def) + '"?')) return;
+    imageCache[t.id] = imageCache[t.id] || [];
+    orphans.forEach(f => imageCache[t.id].push({ id: f.id, ext: f.ext, ts: Date.now() }));
+    saveState();
+    renderGrid(t.id);
+  } catch (e) {
+    alert('Recover failed: ' + e.message);
+  }
 }
 
 function downloadAllImages(tabId) {
@@ -1536,9 +1565,14 @@ document.getElementById('chatTab').onclick = () => { active = CHAT_VIEW; render(
 
 (async function init() {
   render();                       // instant paint from local cache
-  const ok = await loadFromServer();
-  if (ok) render();               // repaint with server data (incl. moodboard images)
-  else pushToServer();            // server empty — seed it with current data
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await loadFromServer();
+    if (res === 'loaded') { render(); return; }
+    if (res === 'empty') { pushToServer(); return; }   // genuinely empty server — safe to seed
+    await new Promise(r => setTimeout(r, 2000));        // server unreachable — wait and retry, never overwrite
+  }
+  const sf = document.getElementById('topflag');
+  if (sf) sf.textContent = 'Offline — not saving';
 })();
 </script>
 </body>

@@ -117,6 +117,18 @@ app.delete('/api/image/:file', (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/media-files  -> lists every image/video file currently on disk (for recovery)
+app.get('/api/media-files', (req, res) => {
+  try {
+    ensureDataDir();
+    const files = fs.readdirSync(IMG_DIR).filter(f => !f.startsWith('.'));
+    const list = files.map(f => { const i = f.lastIndexOf('.'); return { id: i >= 0 ? f.slice(0, i) : f, ext: i >= 0 ? f.slice(i + 1) : '' }; });
+    res.json({ files: list });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/upload?ext=mp4  (raw binary body) -> streams file to disk, returns { id, ext }
 // Used for moodboard images AND videos. Streaming avoids loading the whole file into memory.
 app.post('/api/upload', (req, res) => {
