@@ -227,10 +227,17 @@
   /* ---------- Main ---------- */
   main { flex: 1; min-width: 0; }
   .page-head {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    display: flex; align-items: flex-start; gap: 16px;
     padding: 36px 48px 22px;
     border-bottom: 1px solid var(--line);
   }
+  .tab-avatar {
+    width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0; cursor: pointer;
+    background-color: var(--soft); background-size: cover; background-position: center; background-repeat: no-repeat;
+    border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 22px; font-weight: 400; transition: border-color .12s ease;
+  }
+  .tab-avatar:hover { border-color: var(--blue); color: var(--blue); }
   .title-input {
     font-family: inherit; font-weight: 800; font-size: 32px; letter-spacing: -0.01em;
     text-transform: uppercase;
@@ -434,6 +441,8 @@
 
   <main>
     <header class="page-head">
+      <div class="tab-avatar" id="tabAvatar" title="Set profile picture"></div>
+      <input type="file" id="avatarInput" accept="image/*" class="hidden">
       <div style="flex:1; min-width:0;">
         <input class="title-input" id="nameInput" placeholder="">
         <div class="subtitle" id="subtitle">Prompt &amp; moodboard for this account</div>
@@ -625,7 +634,14 @@ function renderNav() {
 
     const thumb = document.createElement('span');
     thumb.className = 'thumb';
-    thumb.textContent = label.trim().charAt(0).toUpperCase() || 'T';
+    if (t.avatar) {
+      thumb.style.backgroundImage = 'url(' + imgUrl(t.avatar) + ')';
+      thumb.style.backgroundSize = 'cover';
+      thumb.style.backgroundPosition = 'center';
+      thumb.textContent = '';
+    } else {
+      thumb.textContent = label.trim().charAt(0).toUpperCase() || 'T';
+    }
 
     const name = document.createElement('span');
     name.className = 'nav-name';
@@ -654,12 +670,37 @@ function renderNav() {
 function renderMain() {
   const nameInput = document.getElementById('nameInput');
   const subtitle = document.getElementById('subtitle');
+  const avatarEl = document.getElementById('tabAvatar');
+  if (avatarEl) avatarEl.style.display = 'none';
   if (active === AI_VIEW) { renderAIView(nameInput, subtitle); return; }
   if (active === TEXT_VIEW) { renderTextView(nameInput, subtitle); return; }
   if (active === CHAT_VIEW) { renderChatView(nameInput, subtitle); return; }
   nameInput.readOnly = false;
   subtitle.textContent = 'Prompt & moodboard for this account';
   const t = getTab(active);
+  if (avatarEl) {
+    const avatarInput = document.getElementById('avatarInput');
+    avatarEl.style.display = 'flex';
+    if (t.avatar) { avatarEl.style.backgroundImage = 'url(' + imgUrl(t.avatar) + ')'; avatarEl.textContent = ''; }
+    else { avatarEl.style.backgroundImage = 'none'; avatarEl.textContent = '+'; }
+    avatarEl.onclick = () => avatarInput.click();
+    avatarInput.onchange = async () => {
+      const f = [...avatarInput.files].find(x => x.type.startsWith('image/'));
+      avatarInput.value = '';
+      if (!f) return;
+      try {
+        let ext = (f.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || (f.type.split('/')[1] || 'jpg');
+        const r = await fetch('/api/upload?ext=' + encodeURIComponent(ext), { method: 'POST', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.id) throw new Error(d.error || ('HTTP ' + r.status));
+        t.avatar = { id: d.id, ext: d.ext };
+        saveState();
+        avatarEl.style.backgroundImage = 'url(' + imgUrl(t.avatar) + ')';
+        avatarEl.textContent = '';
+        renderNav();
+      } catch (e) { alert('Could not set photo: ' + e.message); }
+    };
+  }
   nameInput.placeholder = t.def;
   nameInput.value = t.name || '';
   nameInput.oninput = () => { t.name = nameInput.value.trim() || null; saveState(); renderNav(); };
