@@ -7,8 +7,13 @@ const fs = require('fs');
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
-// Serve the static site (index.html etc.) from this folder
-app.use(express.static(__dirname));
+// Serve the static site (index.html etc.) from this folder.
+// Never cache HTML, so deploys/updates always show without a hard refresh.
+app.use(express.static(__dirname, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+}));
 
 // Builds a strong "make this version different" instruction for regenerations.
 const VARIATION_AXES = [

@@ -232,12 +232,12 @@
     border-bottom: 1px solid var(--line);
   }
   .tab-avatar {
-    width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0; cursor: pointer;
-    background-color: var(--soft); background-size: cover; background-position: center; background-repeat: no-repeat;
-    border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
-    color: var(--muted); font-size: 22px; font-weight: 400; transition: border-color .12s ease;
+    width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0; cursor: pointer;
+    background-color: var(--blue-soft); background-size: cover; background-position: center; background-repeat: no-repeat;
+    border: 2px dashed var(--blue); display: flex; align-items: center; justify-content: center;
+    color: var(--blue); font-size: 24px; font-weight: 700; transition: all .12s ease;
   }
-  .tab-avatar:hover { border-color: var(--blue); color: var(--blue); }
+  .tab-avatar:hover { background-color: #dde7ff; }
   .title-input {
     font-family: inherit; font-weight: 800; font-size: 32px; letter-spacing: -0.01em;
     text-transform: uppercase;
@@ -681,8 +681,8 @@ function renderMain() {
   if (avatarEl) {
     const avatarInput = document.getElementById('avatarInput');
     avatarEl.style.display = 'flex';
-    if (t.avatar) { avatarEl.style.backgroundImage = 'url(' + imgUrl(t.avatar) + ')'; avatarEl.textContent = ''; }
-    else { avatarEl.style.backgroundImage = 'none'; avatarEl.textContent = '+'; }
+    if (t.avatar) { avatarEl.style.backgroundImage = 'url(' + imgUrl(t.avatar) + ')'; avatarEl.textContent = ''; avatarEl.style.border = '1px solid var(--line)'; avatarEl.style.backgroundColor = 'var(--soft)'; }
+    else { avatarEl.style.backgroundImage = 'none'; avatarEl.textContent = '+'; avatarEl.style.border = ''; avatarEl.style.backgroundColor = ''; }
     avatarEl.onclick = () => avatarInput.click();
     avatarInput.onchange = async () => {
       const f = [...avatarInput.files].find(x => x.type.startsWith('image/'));
@@ -697,6 +697,8 @@ function renderMain() {
         saveState();
         avatarEl.style.backgroundImage = 'url(' + imgUrl(t.avatar) + ')';
         avatarEl.textContent = '';
+        avatarEl.style.border = '1px solid var(--line)';
+        avatarEl.style.backgroundColor = 'var(--soft)';
         renderNav();
       } catch (e) { alert('Could not set photo: ' + e.message); }
     };
